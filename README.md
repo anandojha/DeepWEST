@@ -14,13 +14,3 @@ conda activate mdnet
 
 conda install -c conda-forge matplotlib scipy jupyterlab pandas tensorflow mdtraj
 
-
-### Copyright
-
-Copyright (c) 2021, Anupam Anand Ojha
-
-
-#### Acknowledgements
- 
-Project based on the 
-[Computational Molecular Science Python Cookiecutter](https://github.com/molssi/cookiecutter-cms) version 1.5.
