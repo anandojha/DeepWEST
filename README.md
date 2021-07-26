@@ -12,5 +12,5 @@ conda create -n mdnet python=3.7
 
 conda activate mdnet
 
-conda install -c conda-forge matplotlib scipy jupyterlab pandas tensorflow mdtraj
+conda install -c conda-forge matplotlib scipy jupyterlab pandas tensorflow mdtraj scikit-learn seaborn
 

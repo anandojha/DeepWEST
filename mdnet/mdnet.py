@@ -1,5 +1,11 @@
+from sklearn.mixture import GaussianMixture
+from sklearn.cluster import KMeans
+from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
+from sklearn import metrics
+from scipy import stats
 import tensorflow as tf
+import seaborn as sns
 import pandas as pd
 import pytraj as pt
 import mdtraj as md
@@ -48,234 +54,106 @@ def create_phi_psi(traj, ref_pdb, phi_psi_txt,
     phi_psi = phi_psi.reshape((phi_psi.shape[0], phi_psi.shape[1] * phi_psi.shape[2]))
     print(phi_psi.shape)
     np.savetxt(phi_psi_txt, phi_psi)
+
+
+def add_dihedral_input(traj_whole, dihedral):
+    return np.hstack((traj_whole, dihedral))
+
+################ K-Means Clustering #############
+
+
+def tsne_visualize(traj_data):
+    tsne = TSNE(n_components=2, perplexity=100)
+    tsne_dims = tsne.fit_transform(traj_data)
+    sns.scatterplot(x=tsne_dims[:,0], y=tsne_dims[:,1], alpha=.5)
+    plt.title('2-D TSNE')
+    plt.show()
+    return tsne_dims
     
+def experiment_with_k_means(traj_data, tsne_dims):
+    k_range = np.arange(2, 9)   
+    # training k-means for 7 different values of num_clusters or k (kernels)
+    trials_per_k = 5
+    total_k = k_range.shape[0]
+    score = np.zeros(total_k)
+    for k_num in range(0, total_k):
+      kmeans = KMeans(n_clusters = k_range[k_num])  
+      trial_score = np.zeros(trials_per_k)
+      for trial in range(0, trials_per_k):
+        labels_kmeans = kmeans.fit_predict(traj_data)
+        trial_score[trial] = metrics.davies_bouldin_score(traj_data, labels_kmeans)  
+        # For clustering Davies Bouldin score or silhouette score is a good metric
+      score[k_num] = np.median(trial_score)
+      # Visualising the clusters using tsne fitted dimensions from the previous block
+      sns.scatterplot(x = tsne_dims[:,0], y=tsne_dims[:,1], hue=labels_kmeans, palette='bright', alpha=0.5)
+      plt.title('2-D TSNE for K-Means with k = ' + str(k_range[k_num]))
+      plt.show()
+      print('For %d clusters, score is %f ' % (k_num+2, score[k_num]))
+    max_score = np.max(score)
+    best_num_clusters = np.where(score == max_score)
+    plt.plot(k_range, score)
+    plt.title('Clustering score')
+    plt.show()
+    return best_num_clusters
 
-def get_heavy_atoms_without_solvent(traj, top, traj_array, start = 0, stop = 10000, stride = 1):
-    trajectory = pt.iterload(traj, top, frame_slice = (start, stop, stride))
-    print(trajectory)
-    uniq_resids = list(set(residue.name for residue in trajectory.top.residues))
-    print(uniq_resids)
-    uniq_resids_no_solvent = []
-    for i in uniq_resids:
-        if i != "WAT":
-            uniq_resids_no_solvent.append(i)
-    print(uniq_resids_no_solvent)
-    str_input = ",".join(uniq_resids_no_solvent)
-    str_input = ":" + str_input
-    print(str_input)
-    traj_no_solvent = trajectory[str_input]
-    print(traj_no_solvent)
-    resid_list = [atom.name for atom in traj_no_solvent.top.atoms][:]
-    print(resid_list)
-    h_resid_list = []
-    for i in resid_list:  # assuming residues does not include Hafnium,
-        # Hassium, Helium & Holmium
-        if i.startswith("H"):
-            h_resid_list.append(i)
-    print(h_resid_list)
-    non_h_resid_list = [x for x in resid_list if x not in h_resid_list]
-    print(non_h_resid_list)
-    str_input_ = ",".join(non_h_resid_list)
-    str_input_ = "@" + str_input_
-    print(str_input_)
-    traj_no_solvent_no_h = traj_no_solvent[str_input_]
-    print(traj_no_solvent_no_h)
-    xyzfile = "system_heavy.xyz"
-    traj_no_solvent_no_h.save(xyzfile, overwrite=True)
-    data = pd.read_csv(
-        xyzfile, header=None, delim_whitespace=True, skiprows=[0]
-    )
-    data = data[[1, 2, 3]]
-    data.columns = ["x_coor", "y_coor", "z_coor"]
-    print(data.head())
-    array_data = data.to_numpy()
-    print(array_data.shape)
-    print(array_data)
-    dim1 = int(array_data.shape[0] / len(non_h_resid_list))
-    dim2 = int(array_data.shape[1] * len(non_h_resid_list))
-    array_data_heavy = array_data.reshape((dim1, dim2))
-    print(array_data_heavy.shape)
-    print(array_data_heavy)
-    np.savetxt(traj_array, array_data_heavy)
-    command = "rm -rf " + xyzfile
-    os.system(command)
+def gmm(traj_data, best_num_clusters):
+    num_clusters = best_num_clusters[0][0] + 2
+    gm = GaussianMixture(n_components = num_clusters, random_state = 0).fit(traj_data)
+    posterior_probabs = gm.predict_proba(traj_data)
+    print(posterior_probabs.shape)
+    return posterior_probabs
     
-def get_psi_phi_rad_without_solvent(index_phi, index_psi, traj, top, 
-                                    phi_psi_array, start = 0, stop = 10000, stride = 1):
-    traj = pt.iterload(traj, top, frame_slice = (start, stop, stride))
-    index_phi_add = (
-        "@"
-        + str(index_phi[0])
-        + " @"
-        + str(index_phi[1])
-        + " @"
-        + str(index_phi[2])
-        + " @"
-        + str(index_phi[3])
-    )
-    print(index_phi_add)
-    index_psi_add = (
-        "@"
-        + str(index_psi[0])
-        + " @"
-        + str(index_psi[1])
-        + " @"
-        + str(index_psi[2])
-        + " @"
-        + str(index_psi[3])
-    )
-    print(index_psi_add)
-    phi = pt.dihedral(traj, index_phi_add)
-    phi_rad = np.array([np.deg2rad(i) for i in phi])
-    psi = pt.dihedral(traj, index_psi_add)
-    psi_rad = np.array([np.deg2rad(i) for i in psi])
-    phi_psi = np.array([list(x) for x in zip(phi_rad, psi_rad)])
-    np.savetxt(phi_psi_array, phi_psi)
+def get_clustered_indices(traj_data, posterior_probabs, num_traj_indices):
+
+    """
+    Returns the indices of the trajectory points that are highly 
+    probable to belong to the smallest cluster (slowest state) 
     
+    traj_whole: 2-d array
+        A 2d array containing coordinates of the 
+        heavy atoms at each frame
+    posterior_probabs: 2-d array
+        An array with the predicted posterior probabilities 
+        for each of the frame to belong to a particular 
+        cluster
+    num_traj_indices: int
+        number of trajectories needed from smallest 
+        (slowest) cluster
+
+    """
+
+    labels_final = np.argmax(posterior_probabs, axis = 1)
+    num_trajs = np.bincount(labels_final)
+    slow_state_idx = np.argmin(num_trajs)
+    num_clusters = posterior_probabs.shape[1]
+    traj_idcs = [np.where(labels_final == np.multiply(np.ones_like(labels_final), slow_state_idx))]
+    probs = np.zeros((len(traj_idcs[0][0])))
+    for i, traj in enumerate(traj_idcs[0][0]):
+        probs[i] = posterior_probabs[traj,slow_state_idx]
+    probs_sorted = np.argsort(probs)
+    return probs_sorted[:num_traj_indices], labels_final, num_trajs
+
+def plot_RC(dihedral_data, labels):
+    fig, ax = plt.subplots()
+    for i in range(num_clusters):
+        coor_train = np.where(labels == i)[0]
+        ax.scatter(dihedral[coor_train,0], dihedral[coor_train,1], s=5, label=i)
+    ax.legend()
+    plt.axes = [[-np.pi, np.pi],[-np.pi, np.pi]]
+    plt.show()
     
-def get_psi_phi_degrees_without_solvent(index_phi, index_psi, traj, top, 
-                                    phi_psi_array, start = 0, stop = 10000, stride = 1):
-    traj = pt.iterload(traj, top, frame_slice = (start, stop, stride))
-    index_phi_add = (
-        "@"
-        + str(index_phi[0])
-        + " @"
-        + str(index_phi[1])
-        + " @"
-        + str(index_phi[2])
-        + " @"
-        + str(index_phi[3])
-    )
-    print(index_phi_add)
-    index_psi_add = (
-        "@"
-        + str(index_psi[0])
-        + " @"
-        + str(index_psi[1])
-        + " @"
-        + str(index_psi[2])
-        + " @"
-        + str(index_psi[3])
-    )
-    print(index_psi_add)
-    phi = pt.dihedral(traj, index_phi_add)
-    psi = pt.dihedral(traj, index_psi_add)
-    phi_psi = np.array([list(x) for x in zip(phi, psi)])
-    np.savetxt(phi_psi_array, phi_psi)
-
-def get_heavy_atoms_with_solvent(traj, top, traj_array):
-    traj = pt.iterload(traj, top)
-    print(traj)
-    uniq_resids = list(set(residue.name for residue in traj.top.residues))
-    print(uniq_resids)
-    uniq_resids_no_solvent = []
-    for i in uniq_resids:
-        if i != "WAT":
-            uniq_resids_no_solvent.append(i)
-    print(uniq_resids_no_solvent)
-    str_input = ",".join(uniq_resids_no_solvent)
-    str_input = ":" + str_input
-    print(str_input)
-    traj_no_solvent = traj[str_input]
-    print(traj_no_solvent)
-    resid_list = [atom.name for atom in traj_no_solvent.top.atoms][:]
-    print(resid_list)
-    h_resid_list = []
-    for i in resid_list:  # assuming residues does not include Hafnium,
-        # Hassium, Helium & Holmium
-        if i.startswith("H"):
-            h_resid_list.append(i)
-    print(h_resid_list)
-    non_h_resid_list = [x for x in resid_list if x not in h_resid_list]
-    print(non_h_resid_list)
-    str_input_ = ",".join(non_h_resid_list)
-    str_input_ = "@" + str_input_
-    print(str_input_)
-    traj_no_solvent_no_h = traj_no_solvent[str_input_]
-    print(traj_no_solvent_no_h)
-    xyzfile = "system_heavy.xyz"
-    traj_no_solvent_no_h.save(xyzfile, overwrite=True)
-    data = pd.read_csv(
-        xyzfile, header=None, delim_whitespace=True, skiprows=[0]
-    )
-    data = data[[1, 2, 3]]
-    data.columns = ["x_coor", "y_coor", "z_coor"]
-    print(data.head())
-    array_data = data.to_numpy()
-    print(array_data.shape)
-    print(array_data)
-    dim1 = int(array_data.shape[0] / len(non_h_resid_list))
-    dim2 = int(array_data.shape[1] * len(non_h_resid_list))
-    array_data_heavy = array_data.reshape((dim1, dim2))
-    print(array_data_heavy.shape)
-    print(array_data_heavy)
-    np.savetxt(traj_array, array_data_heavy)
-    command = "rm -rf " + xyzfile
-    os.system(command)
-
-
-def get_psi_phi_degrees_with_solvent(index_phi, index_psi, traj, top, phi_psi_array):
-    traj = pt.load(traj, top)
-    index_phi_add = (
-        "@"
-        + str(index_phi[0])
-        + " @"
-        + str(index_phi[1])
-        + " @"
-        + str(index_phi[2])
-        + " @"
-        + str(index_phi[3])
-    )
-    print(index_phi_add)
-    index_psi_add = (
-        "@"
-        + str(index_psi[0])
-        + " @"
-        + str(index_psi[1])
-        + " @"
-        + str(index_psi[2])
-        + " @"
-        + str(index_psi[3])
-    )
-    print(index_psi_add)
-    phi = pt.dihedral(traj, index_phi_add)
-    psi = pt.dihedral(traj, index_psi_add)
-    phi_psi = np.array([list(x) for x in zip(phi, psi)])
-    np.savetxt(phi_psi_array, phi_psi)
-
-
-def get_psi_phi_rad_with_solvent(index_phi, index_psi, traj, top, phi_psi_array):
-    traj = pt.load(traj, top)
-    index_phi_add = (
-        "@"
-        + str(index_phi[0])
-        + " @"
-        + str(index_phi[1])
-        + " @"
-        + str(index_phi[2])
-        + " @"
-        + str(index_phi[3])
-    )
-    print(index_phi_add)
-    index_psi_add = (
-        "@"
-        + str(index_psi[0])
-        + " @"
-        + str(index_psi[1])
-        + " @"
-        + str(index_psi[2])
-        + " @"
-        + str(index_psi[3])
-    )
-    print(index_psi_add)
-    phi = pt.dihedral(traj, index_phi_add)
-    phi_rad = np.array([np.deg2rad(i) for i in phi])
-    psi = pt.dihedral(traj, index_psi_add)
-    psi_rad = np.array([np.deg2rad(i) for i in psi])
-    phi_psi = np.array([list(x) for x in zip(phi_rad, psi_rad)])
-    np.savetxt(phi_psi_array, phi_psi)
-
-
+def print_states_pie_chart():
+    coors = []
+    maxi = np.max(pred_ord, axis= 1)
+    for i in range(output_size):
+        coors.append(len(np.where(pred_ord[:,i] == maxi)[0]))
+    fig1, ax1 = plt.subplots()
+    ax1.pie(np.array(coors), autopct='%1.2f%%', startangle=90)
+    ax1.axis('equal')  
+    # Equal aspect ratio ensures that pie is drawn as a circle.
+    print('States population: '+ str(np.array(coors)/len(maxi)*100)+'%')
+    plt.show()
+    
 ################ VAMPnet ################
 
 
@@ -1117,7 +995,8 @@ class VampnetTools(object):
 
         return auto_cov_inv_root, cross_cov
 
-    ################ Experimental Functions ################
+
+################ Experimental Functions ################
 
     def _loss_VAMP_sym(self, y_true, y_pred):
 
@@ -1296,3 +1175,4 @@ class VampnetTools(object):
 
         koopman_op = c0_inv_root @ c_tau @ c1_inv_root
         return koopman_op
+
