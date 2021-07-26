@@ -142,6 +142,15 @@ def print_states_pie_chart():
     print('States population: '+ str(np.array(coors)/len(maxi)*100)+'%')
     plt.show()
     
+def pdbs_from_indices(indices, traj_file, ref_pdb):
+    os.system("mkdir westpa_dir")
+    for i in indices:
+        traj_frame = md.load_frame(filename=traj_file, top=ref_pdb, index = i)
+        pdb_name = str(i) + ".pdb"
+        pdb_path = os.path.join(os.getcwd(), "westpa_dir/"+pdb_name)
+        traj_frame.save_pdb(pdb_path, force_overwrite=True)
+
+
 ################ VAMPnet ################
 
 
