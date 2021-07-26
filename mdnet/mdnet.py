@@ -108,20 +108,8 @@ def get_clustered_indices(traj_data, posterior_probabs, num_traj_indices):
     """
     Returns the indices of the trajectory points that are highly 
     probable to belong to the smallest cluster (slowest state) 
-    
-    traj_whole: 2-d array
-        A 2d array containing coordinates of the 
-        heavy atoms at each frame
-    posterior_probabs: 2-d array
-        An array with the predicted posterior probabilities 
-        for each of the frame to belong to a particular 
-        cluster
-    num_traj_indices: int
-        number of trajectories needed from smallest 
-        (slowest) cluster
 
     """
-
     labels_final = np.argmax(posterior_probabs, axis = 1)
     num_trajs = np.bincount(labels_final)
     slow_state_idx = np.argmin(num_trajs)
@@ -131,7 +119,7 @@ def get_clustered_indices(traj_data, posterior_probabs, num_traj_indices):
     for i, traj in enumerate(traj_idcs[0][0]):
         probs[i] = posterior_probabs[traj,slow_state_idx]
     probs_sorted = np.argsort(probs)
-    return probs_sorted[:num_traj_indices], labels_final, num_trajs
+    return probs_sorted[:num_traj_indices], labels_final
 
 def plot_RC(dihedral_data, labels):
     fig, ax = plt.subplots()
