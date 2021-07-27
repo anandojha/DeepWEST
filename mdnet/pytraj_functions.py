@@ -239,10 +239,10 @@ command = "curl -O http://ftp.imp.fu-berlin.de/pub/cmb-data/alanine-dipeptide-no
 os.system(command)
 command = "mv alanine-dipeptide-nowater.pdb ref_system.pdb"
 os.system(command)
-mdnet.get_heavy_atoms_without_solvent(traj="system_final.nc", top="ref_system.pdb", 
+get_heavy_atoms_without_solvent(traj="system_final.nc", top="ref_system.pdb", 
                                       traj_array="heavy_atoms_pt.txt", stop = 100, 
                                       stride = 10)
-mdnet.get_psi_phi_rad_without_solvent(index_phi=[5, 7, 9, 15], index_psi=[7, 9, 15, 17], 
+get_psi_phi_rad_without_solvent(index_phi=[5, 7, 9, 15], index_psi=[7, 9, 15, 17], 
                                  traj="system_final.nc", top="ref_system.pdb", 
                                  phi_psi_array="phi_psi_pt.txt",start = 0, stop = 100,
                                  stride = 10)
