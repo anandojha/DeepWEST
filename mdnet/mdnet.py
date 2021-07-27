@@ -1,4 +1,5 @@
 from sklearn.mixture import GaussianMixture
+import matplotlib.gridspec as gridspec
 from sklearn.cluster import KMeans
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
@@ -7,17 +8,22 @@ from scipy import stats
 import tensorflow as tf
 import seaborn as sns
 import pandas as pd
-import pytraj as pt
 import mdtraj as md
 import numpy as np
+import itertools
+import fnmatch
+import shutil
 import scipy
 import os
+import re
 
 ################ Amber Trjaectory to array ################
 
-def create_heavy_atom_xyz(traj, ref_pdb, heavy_atoms_array, 
-                          start = 0, stop = 500000, stride = 1):
-    # Download the reference PDB to be used when the .nc file is without solvent. Otherwise, use 
+
+def create_heavy_atom_xyz(
+    traj, ref_pdb, heavy_atoms_array, start=0, stop=500000, stride=1
+):
+    # Download the reference PDB to be used when the .nc file is without solvent. Otherwise, use
     # the prmtop file
     command = "curl -O http://ftp.imp.fu-berlin.de/pub/cmb-data/alanine-dipeptide-nowater.pdb"
     os.system(command)
@@ -26,21 +32,23 @@ def create_heavy_atom_xyz(traj, ref_pdb, heavy_atoms_array,
     topology = md.load(ref_pdb).topology
     print(topology)
     df, bonds = topology.to_dataframe()
-    heavy_indices = list(df[df['element'] != 'H'].index)
+    heavy_indices = list(df[df["element"] != "H"].index)
     print(heavy_indices)
     trajec = md.load(traj, top=ref_pdb)
     trajec = trajec[start:stop:stride]
     print(trajec)
-    trajec = trajec.atom_slice(atom_indices = heavy_indices)
+    trajec = trajec.atom_slice(atom_indices=heavy_indices)
     print(trajec)
     trajec_xyz = trajec.xyz * 10
     print(trajec_xyz.shape)
-    trajec_xyz = trajec_xyz.reshape((trajec.xyz.shape[0], trajec.xyz.shape[1] * trajec.xyz.shape[2]))
+    trajec_xyz = trajec_xyz.reshape(
+        (trajec.xyz.shape[0], trajec.xyz.shape[1] * trajec.xyz.shape[2])
+    )
     print(trajec_xyz.shape)
     np.savetxt(heavy_atoms_array, trajec_xyz)
-    
-def create_phi_psi(traj, ref_pdb, phi_psi_txt, 
-                   start = 0, stop = 500000, stride = 1):
+
+
+def create_phi_psi(traj, ref_pdb, phi_psi_txt, start=0, stop=500000, stride=1):
     trajec = md.load(traj, top=ref_pdb)
     trajec = trajec[start:stop:stride]
     phi = md.compute_phi(trajec)
@@ -51,34 +59,41 @@ def create_phi_psi(traj, ref_pdb, phi_psi_txt,
     print(psi.shape)
     phi_psi = np.array([list(x) for x in zip(phi, psi)])
     print(phi_psi.shape)
-    phi_psi = phi_psi.reshape((phi_psi.shape[0], phi_psi.shape[1] * phi_psi.shape[2]))
+    phi_psi = phi_psi.reshape(
+        (phi_psi.shape[0], phi_psi.shape[1] * phi_psi.shape[2])
+    )
     print(phi_psi.shape)
     np.savetxt(phi_psi_txt, phi_psi)
 
-def create_heavy_atom_xyz_solvent(traj, top, heavy_atoms_array, 
-                                  start = 0, stop = 500000, stride = 1):
+
+def create_heavy_atom_xyz_solvent(
+    traj, top, heavy_atoms_array, start=0, stop=500000, stride=1
+):
     trajec = md.load(traj, top=top)
-    trajec = trajec.remove_solvent()   
+    trajec = trajec.remove_solvent()
     trajec = trajec[start:stop:stride]
     print(trajec)
     topology = trajec.topology
     print(topology)
     df, bonds = topology.to_dataframe()
-    heavy_indices = list(df[df['element'] != 'H'].index)
+    heavy_indices = list(df[df["element"] != "H"].index)
     print(heavy_indices)
-    trajec = trajec.atom_slice(atom_indices = heavy_indices)
+    trajec = trajec.atom_slice(atom_indices=heavy_indices)
     print(trajec)
     trajec_xyz = trajec.xyz * 10
     print(trajec_xyz.shape)
-    trajec_xyz = trajec_xyz.reshape((trajec.xyz.shape[0], trajec.xyz.shape[1] * trajec.xyz.shape[2]))
+    trajec_xyz = trajec_xyz.reshape(
+        (trajec.xyz.shape[0], trajec.xyz.shape[1] * trajec.xyz.shape[2])
+    )
     print(trajec_xyz.shape)
     np.savetxt(heavy_atoms_array, trajec_xyz)
-    
-    
-def create_phi_psi_solvent(traj, top, phi_psi_txt, 
-                   start = 0, stop = 25000, stride = 1):
+
+
+def create_phi_psi_solvent(
+    traj, top, phi_psi_txt, start=0, stop=500000, stride=1
+):
     trajec = md.load(traj, top=top)
-    trajec = trajec.remove_solvent() 
+    trajec = trajec.remove_solvent()
     trajec = trajec[start:stop:stride]
     phi = md.compute_phi(trajec)
     phi = phi[1]  # 0:indices, 1:phi angles
@@ -88,13 +103,353 @@ def create_phi_psi_solvent(traj, top, phi_psi_txt,
     print(psi.shape)
     phi_psi = np.array([list(x) for x in zip(phi, psi)])
     print(phi_psi.shape)
-    phi_psi = phi_psi.reshape((phi_psi.shape[0], phi_psi.shape[1] * phi_psi.shape[2]))
+    phi_psi = phi_psi.reshape(
+        (phi_psi.shape[0], phi_psi.shape[1] * phi_psi.shape[2])
+    )
     print(phi_psi.shape)
     np.savetxt(phi_psi_txt, phi_psi)
 
 
+def fix_cap_remove_ace(pdb_file):
+
+    """
+    Removes the H atoms of the capped ACE residue.
+
+    """
+
+    remove_words = [
+        "H1  ACE",
+        "H2  ACE",
+        "H3  ACE",
+        "H31 ACE",
+        "H32 ACE",
+        "H33 ACE",
+    ]
+    with open(pdb_file) as oldfile, open("intermediate.pdb", "w") as newfile:
+        for line in oldfile:
+            if not any(word in line for word in remove_words):
+                newfile.write(line)
+    command = "rm -rf " + pdb_file
+    os.system(command)
+    command = "mv intermediate.pdb " + pdb_file
+    os.system(command)
+
+
+def fix_cap_replace_ace(pdb_file):
+
+    """
+    Replaces the alpha carbon atom of the
+    capped ACE residue with a standard name.
+
+    """
+
+    fin = open(pdb_file, "rt")
+    data = fin.read()
+    data = data.replace("CA  ACE", "CH3 ACE")
+    data = data.replace("C   ACE", "CH3 ACE")
+    fin.close()
+    fin = open(pdb_file, "wt")
+    fin.write(data)
+    fin.close()
+
+
+def fix_cap_remove_nme(pdb_file):
+
+    """
+    Removes the H atoms of the capped NME residue.
+
+    """
+
+    remove_words = [
+        "H1  NME",
+        "H2  NME",
+        "H3  NME",
+        "H31 NME",
+        "H32 NME",
+        "H33 NME",
+    ]
+    with open(pdb_file) as oldfile, open("intermediate.pdb", "w") as newfile:
+        for line in oldfile:
+            if not any(word in line for word in remove_words):
+                newfile.write(line)
+    command = "rm -rf " + pdb_file
+    os.system(command)
+    command = "mv intermediate.pdb " + pdb_file
+    os.system(command)
+
+
+def fix_cap_replace_nme(pdb_file):
+
+    """
+    Replaces the alpha carbon atom of the
+    capped NME residue with a standard name.
+
+    """
+
+    fin = open(pdb_file, "rt")
+    data = fin.read()
+    data = data.replace("CA  NME", "CH3 NME")
+    data = data.replace("C   NME", "CH3 NME")
+    fin.close()
+    fin = open(pdb_file, "wt")
+    fin.write(data)
+    fin.close()
+
+
+def create_westpa_dir(traj_file, top, indices):
+    os.system("rm -rf westpa_dir")
+    os.system("mkdir westpa_dir")
+    for i in indices:
+        traj_frame = md.load_frame(filename=traj_file, top=top, index=i)
+        pdb_name = str(i) + ".pdb"
+        pdb_path = os.path.join(os.getcwd(), "westpa_dir/" + pdb_name)
+        traj_frame.save_pdb(pdb_path, force_overwrite=True)
+
+
+def add_vectors(traj, top, inpcrd_file):
+    trajec = md.load_frame(traj, top=top, index=0)
+    x = trajec.openmm_boxes(frame=0)
+    x = str(x)
+    x = x.replace("Vec3", "")
+    x = re.findall("\d*\.?\d+", x)
+    for i in range(0, len(x)):
+        x[i] = float(x[i])
+    x = tuple(x)
+    n = int(len(x) / 3)
+    x = [x[i * n : (i + 1) * n] for i in range((len(x) + n - 1) // n)]
+    vectors = ((x[0][0]) * 10, (x[1][1]) * 10, (x[2][2]) * 10)
+    vectors = (
+        round(vectors[0], 7),
+        round(vectors[1], 7),
+        round(vectors[2], 7),
+    )
+    new_vectors = []
+    for i in vectors:
+        target_len = 10
+        if len(str(i)) < 10:
+            i = str(i) + (10 - len(str(i))) * "0"
+        else:
+            i = str(i)
+        new_vectors.append(i)
+    new_vectors = tuple(new_vectors)
+    last_line = (
+        "  "
+        + new_vectors[0]
+        + "  "
+        + new_vectors[1]
+        + "  "
+        + new_vectors[2]
+        + "  90.0000000"
+        + "  90.0000000"
+        + "  90.0000000"
+    )
+    with open(inpcrd_file, "a+") as f:
+        f.write(last_line)
+
+
+def run_short_md_westpa_dir(traj, top):
+    files = os.listdir(".")
+    file_to_find = "*.pdb"
+    pdb_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            pdb_list.append(x)
+    # Fixing capping issues in mdtraj saved pdb files
+    for i in pdb_list:
+        pdb_file = i
+        fix_cap_remove_nme(pdb_file)
+        fix_cap_replace_nme(pdb_file)
+    # Saving inpcrd file from mdtraj saved pdb files
+    for i in pdb_list:
+        pdb_file = i
+        line_1 = "source leaprc.protein.ff14SB"
+        line_2 = "source leaprc.water.tip3p"
+        line_3 = "set default FlexibleWater on"
+        line_4 = "set default PBRadii mbondi2"
+        line_5 = "pdb = loadpdb " + pdb_file
+        line_6 = (
+            "saveamberparm pdb "
+            + pdb_file[:-4]
+            + ".prmtop "
+            + pdb_file[:-4]
+            + ".inpcrd"
+        )
+        line_7 = "quit"
+        with open("input.leap", "w") as f:
+            f.write("    " + "\n")
+            f.write(line_1 + "\n")
+            f.write(line_2 + "\n")
+            f.write(line_3 + "\n")
+            f.write(line_4 + "\n")
+            f.write(line_5 + "\n")
+            f.write(line_6 + "\n")
+            f.write(line_7 + "\n")
+        command = "tleap -f input.leap"
+        os.system(command)
+        command = "rm -rf input.leap"
+        os.system(command)
+    files = os.listdir(".")
+    file_to_find = "*.inpcrd"
+    inpcrd_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            inpcrd_list.append(x)
+    for i in inpcrd_list:
+        add_vectors(traj=traj, top=top, inpcrd_file=i)
+    # Creating Amber MD input file
+    with open("md.in", "w") as f:
+        f.write("Run minimization followed by saving rst file" + "\n")
+        f.write("&cntrl" + "\n")
+        f.write(
+            "  imin = 1, maxcyc = 10000, ntpr = 5, iwrap = 1, ntxo = 1" + "\n"
+        )
+        f.write("&end" + "\n")
+    # Running short MD simulations to save .rst file
+    for i in pdb_list:
+        pdb_file = i
+        command = (
+            "pmemd.cuda -O -i md.in -o "
+            + pdb_file[:-4]
+            + ".out"
+            + " -p "
+            + pdb_file[:-4]
+            + ".prmtop"
+            + " -c "
+            + pdb_file[:-4]
+            + ".inpcrd"
+            + " -r "
+            + pdb_file[:-4]
+            + ".rst"
+        )
+        print(command)
+        os.system(command)
+    # Deleting md.in file
+    command = "rm -rf md.in __pycache__  leap.log mdinfo"
+    os.system(command)
+
+
+def create_westpa_filetree():
+    files = os.listdir(".")
+    file_to_find = "*.rst"
+    rst_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            rst_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_rst"
+    os.system("rm -rf bstates_rst")
+    os.system("mkdir bstates_rst")
+    for i in rst_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+
+    files = os.listdir(".")
+    file_to_find = "*.pdb"
+    pdb_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            pdb_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_pdb"
+    os.system("rm -rf bstates_pdb")
+    os.system("mkdir bstates_pdb")
+    for i in pdb_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+
+    files = os.listdir(".")
+    file_to_find = "*.inpcrd"
+    inpcrd_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            inpcrd_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_inpcrd"
+    os.system("rm -rf bstates_inpcrd")
+    os.system("mkdir bstates_inpcrd")
+    for i in inpcrd_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+
+    files = os.listdir(".")
+    file_to_find = "*.prmtop"
+    prmtop_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            prmtop_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_prmtop"
+    os.system("rm -rf bstates_prmtop")
+    os.system("mkdir bstates_prmtop")
+    for i in prmtop_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+
+    files = os.listdir(".")
+    file_to_find = "*.out"
+    out_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            out_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_out"
+    os.system("rm -rf bstates_out")
+    os.system("mkdir bstates_out")
+    for i in out_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+
+    files = os.listdir(".")
+    file_to_find = "*.rst"
+    rst_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            rst_list.append(x)
+    prob = round(1 / len(rst_list), 10)
+    prob_list = [prob] * len(rst_list)
+    index = []
+    for i in range(len(rst_list)):
+        index.append(i)
+    data = [index, prob_list, rst_list]
+    df = pd.DataFrame(data)
+    df = df.transpose()
+    df.columns = ["index", "prob", "file"]
+    df.to_csv("BASIS_STATES_RST", sep="\t", index=False, header=False)
+
+    files = os.listdir(".")
+    file_to_find = "*.inpcrd"
+    inpcrd_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            inpcrd_list.append(x)
+    prob = round(1 / len(inpcrd_list), 10)
+    prob_list = [prob] * len(inpcrd_list)
+    index = []
+    for i in range(len(inpcrd_list)):
+        index.append(i)
+    data = [index, prob_list, inpcrd_list]
+    df = pd.DataFrame(data)
+    df = df.transpose()
+    df.columns = ["index", "prob", "file"]
+    df.to_csv("BASIS_STATES_INPCRD", sep="\t", index=False, header=False)
+
+    files = os.listdir(".")
+    file_to_find = "*.prmtop"
+    prmtop_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            prmtop_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "CONFIG"
+    os.system("rm -rf CONFIG")
+    os.system("mkdir CONFIG")
+    prmtop_file = prmtop_list[0]
+    shutil.copy(
+        current_dir + "/" + prmtop_file, target_dir + "/" + "system.prmtop"
+    )
+
+    command = "rm -rf *.pdb* *.inpcrd* *.prmtop* *.rst* *.out* "
+    os.system(command)
+
+
 def add_dihedral_input(traj_whole, dihedral):
     return np.hstack((traj_whole, dihedral))
+
 
 ################ K-Means Clustering #############
 
@@ -102,91 +457,114 @@ def add_dihedral_input(traj_whole, dihedral):
 def tsne_visualize(traj_data):
     tsne = TSNE(n_components=2, perplexity=100)
     tsne_dims = tsne.fit_transform(traj_data)
-    sns.scatterplot(x=tsne_dims[:,0], y=tsne_dims[:,1], alpha=.5)
-    plt.title('2-D TSNE')
+    sns.scatterplot(x=tsne_dims[:, 0], y=tsne_dims[:, 1], alpha=0.5)
+    plt.title("2-D TSNE")
     plt.show()
     return tsne_dims
-    
+
+
 def experiment_with_k_means(traj_data, tsne_dims):
-    k_range = np.arange(2, 9)   
+    k_range = np.arange(2, 9)
     # training k-means for 7 different values of num_clusters or k (kernels)
     trials_per_k = 5
     total_k = k_range.shape[0]
     score = np.zeros(total_k)
     for k_num in range(0, total_k):
-      kmeans = KMeans(n_clusters = k_range[k_num])  
-      trial_score = np.zeros(trials_per_k)
-      for trial in range(0, trials_per_k):
-        labels_kmeans = kmeans.fit_predict(traj_data)
-        trial_score[trial] = metrics.davies_bouldin_score(traj_data, labels_kmeans)  
-        # For clustering Davies Bouldin score or silhouette score is a good metric
-      score[k_num] = np.median(trial_score)
-      # Visualising the clusters using tsne fitted dimensions from the previous block
-      sns.scatterplot(x = tsne_dims[:,0], y=tsne_dims[:,1], hue=labels_kmeans, palette='bright', alpha=0.5)
-      plt.title('2-D TSNE for K-Means with k = ' + str(k_range[k_num]))
-      plt.show()
-      print('For %d clusters, score is %f ' % (k_num+2, score[k_num]))
+        kmeans = KMeans(n_clusters=k_range[k_num])
+        trial_score = np.zeros(trials_per_k)
+        for trial in range(0, trials_per_k):
+            labels_kmeans = kmeans.fit_predict(traj_data)
+            trial_score[trial] = metrics.davies_bouldin_score(
+                traj_data, labels_kmeans
+            )
+            # For clustering Davies Bouldin score or silhouette score is a good metric
+        score[k_num] = np.median(trial_score)
+        # Visualising the clusters using tsne fitted dimensions from the previous block
+        sns.scatterplot(
+            x=tsne_dims[:, 0],
+            y=tsne_dims[:, 1],
+            hue=labels_kmeans,
+            palette="bright",
+            alpha=0.5,
+        )
+        plt.title("2-D TSNE for K-Means with k = " + str(k_range[k_num]))
+        plt.show()
+        print("For %d clusters, score is %f " % (k_num + 2, score[k_num]))
     max_score = np.max(score)
     best_num_clusters = np.where(score == max_score)
     plt.plot(k_range, score)
-    plt.title('Clustering score')
+    plt.title("Clustering score")
     plt.show()
     return best_num_clusters
 
+
 def gmm(traj_data, best_num_clusters):
     num_clusters = best_num_clusters[0][0] + 2
-    gm = GaussianMixture(n_components = num_clusters, random_state = 0).fit(traj_data)
+    gm = GaussianMixture(n_components=num_clusters, random_state=0).fit(
+        traj_data
+    )
     posterior_probabs = gm.predict_proba(traj_data)
     print(posterior_probabs.shape)
     return posterior_probabs
-    
+
+
 def get_clustered_indices(traj_data, posterior_probabs, num_traj_indices):
 
     """
-    Returns the indices of the trajectory points that are highly 
-    probable to belong to the smallest cluster (slowest state) 
+    Returns the indices of the trajectory points that are highly
+    probable to belong to the smallest cluster (slowest state)
 
     """
-    labels_final = np.argmax(posterior_probabs, axis = 1)
+    labels_final = np.argmax(posterior_probabs, axis=1)
     num_trajs = np.bincount(labels_final)
     slow_state_idx = np.argmin(num_trajs)
     num_clusters = posterior_probabs.shape[1]
-    traj_idcs = [np.where(labels_final == np.multiply(np.ones_like(labels_final), slow_state_idx))]
+    traj_idcs = [
+        np.where(
+            labels_final
+            == np.multiply(np.ones_like(labels_final), slow_state_idx)
+        )
+    ]
     probs = np.zeros((len(traj_idcs[0][0])))
     for i, traj in enumerate(traj_idcs[0][0]):
-        probs[i] = posterior_probabs[traj,slow_state_idx]
+        probs[i] = posterior_probabs[traj, slow_state_idx]
     probs_sorted = np.argsort(probs)
     return probs_sorted[:num_traj_indices], labels_final
+
 
 def plot_RC(dihedral_data, labels):
     fig, ax = plt.subplots()
     for i in range(num_clusters):
         coor_train = np.where(labels == i)[0]
-        ax.scatter(dihedral[coor_train,0], dihedral[coor_train,1], s=5, label=i)
+        ax.scatter(
+            dihedral[coor_train, 0], dihedral[coor_train, 1], s=5, label=i
+        )
     ax.legend()
-    plt.axes = [[-np.pi, np.pi],[-np.pi, np.pi]]
+    plt.axes = [[-np.pi, np.pi], [-np.pi, np.pi]]
     plt.show()
-    
+
+
 def print_states_pie_chart():
     coors = []
-    maxi = np.max(pred_ord, axis= 1)
+    maxi = np.max(pred_ord, axis=1)
     for i in range(output_size):
-        coors.append(len(np.where(pred_ord[:,i] == maxi)[0]))
+        coors.append(len(np.where(pred_ord[:, i] == maxi)[0]))
     fig1, ax1 = plt.subplots()
-    ax1.pie(np.array(coors), autopct='%1.2f%%', startangle=90)
-    ax1.axis('equal')  
+    ax1.pie(np.array(coors), autopct="%1.2f%%", startangle=90)
+    ax1.axis("equal")
     # Equal aspect ratio ensures that pie is drawn as a circle.
-    print('States population: '+ str(np.array(coors)/len(maxi)*100)+'%')
+    print("States population: " + str(np.array(coors) / len(maxi) * 100) + "%")
     plt.show()
-    
+
+
 def pdbs_from_indices(indices, traj_file, ref_pdb):
     os.system("rm -rf westpa_dir")
     os.system("mkdir westpa_dir")
     for i in indices:
-        traj_frame = md.load_frame(filename=traj_file, top=ref_pdb, index = i)
+        traj_frame = md.load_frame(filename=traj_file, top=ref_pdb, index=i)
         pdb_name = str(i) + ".pdb"
-        pdb_path = os.path.join(os.getcwd(), "westpa_dir/"+ pdb_name)
-        traj_frame.save_pdb(pdb_path, force_overwrite = True)
+        pdb_path = os.path.join(os.getcwd(), "westpa_dir/" + pdb_name)
+        traj_frame.save_pdb(pdb_path, force_overwrite=True)
 
 
 ################ VAMPnet ################
@@ -1030,8 +1408,7 @@ class VampnetTools(object):
 
         return auto_cov_inv_root, cross_cov
 
-
-################ Experimental Functions ################
+    ################ Experimental Functions ################
 
     def _loss_VAMP_sym(self, y_true, y_pred):
 
@@ -1210,4 +1587,3 @@ class VampnetTools(object):
 
         koopman_op = c0_inv_root @ c_tau @ c1_inv_root
         return koopman_op
-
