@@ -55,6 +55,43 @@ def create_phi_psi(traj, ref_pdb, phi_psi_txt,
     print(phi_psi.shape)
     np.savetxt(phi_psi_txt, phi_psi)
 
+def create_heavy_atom_xyz_solvent(traj, top, heavy_atoms_array, 
+                                  start = 0, stop = 500000, stride = 1):
+    trajec = md.load(traj, top=top)
+    trajec = trajec.remove_solvent()   
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    topology = trajec.topology
+    print(topology)
+    df, bonds = topology.to_dataframe()
+    heavy_indices = list(df[df['element'] != 'H'].index)
+    print(heavy_indices)
+    trajec = trajec.atom_slice(atom_indices = heavy_indices)
+    print(trajec)
+    trajec_xyz = trajec.xyz * 10
+    print(trajec_xyz.shape)
+    trajec_xyz = trajec_xyz.reshape((trajec.xyz.shape[0], trajec.xyz.shape[1] * trajec.xyz.shape[2]))
+    print(trajec_xyz.shape)
+    np.savetxt(heavy_atoms_array, trajec_xyz)
+    
+    
+def create_phi_psi_solvent(traj, top, phi_psi_txt, 
+                   start = 0, stop = 25000, stride = 1):
+    trajec = md.load(traj, top=top)
+    trajec = trajec.remove_solvent() 
+    trajec = trajec[start:stop:stride]
+    phi = md.compute_phi(trajec)
+    phi = phi[1]  # 0:indices, 1:phi angles
+    print(phi.shape)
+    psi = md.compute_psi(trajec)
+    psi = psi[1]  # 0:indices, 1:phi angles
+    print(psi.shape)
+    phi_psi = np.array([list(x) for x in zip(phi, psi)])
+    print(phi_psi.shape)
+    phi_psi = phi_psi.reshape((phi_psi.shape[0], phi_psi.shape[1] * phi_psi.shape[2]))
+    print(phi_psi.shape)
+    np.savetxt(phi_psi_txt, phi_psi)
+
 
 def add_dihedral_input(traj_whole, dihedral):
     return np.hstack((traj_whole, dihedral))
@@ -143,12 +180,13 @@ def print_states_pie_chart():
     plt.show()
     
 def pdbs_from_indices(indices, traj_file, ref_pdb):
+    os.system("rm -rf westpa_dir")
     os.system("mkdir westpa_dir")
     for i in indices:
         traj_frame = md.load_frame(filename=traj_file, top=ref_pdb, index = i)
         pdb_name = str(i) + ".pdb"
-        pdb_path = os.path.join(os.getcwd(), "westpa_dir/"+pdb_name)
-        traj_frame.save_pdb(pdb_path, force_overwrite=True)
+        pdb_path = os.path.join(os.getcwd(), "westpa_dir/"+ pdb_name)
+        traj_frame.save_pdb(pdb_path, force_overwrite = True)
 
 
 ################ VAMPnet ################
