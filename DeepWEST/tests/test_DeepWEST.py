@@ -1,12 +1,12 @@
 """
-Unit and regression test for the mdnet package.
+Unit and regression test for the DeepWEST package.
 """
 
 # Import package, test suite, and other packages as needed
-import mdnet
+import DeepWEST
 import pytest
 import sys
 
-def test_mdnet_imported():
+def test_DeepWEST_imported():
     """Sample test, will always pass so long as import statement worked."""
-    assert "mdnet" in sys.modules
+    assert "DeepWEST" in sys.modules

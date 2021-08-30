@@ -1,11 +1,11 @@
 """
-short description of mdnet.
+DeepWEST
 
-Machine Learning Analysis of Molecular Dynamics Trajectories for Weighted Ensemble simulations
+Deep learning approaches for Weighted Ensemble Simulations Toolkit  for faster and enhanced sampling of kinetics and thermodynamics
 """
 
 # Add imports here
-from .mdnet import *
+from .DeepWEST import *
 
 # Handle versioneer
 from ._version import get_versions

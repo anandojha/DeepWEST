@@ -1,6 +1,6 @@
 """
-mdnet
-Machine Learning Analysis of Molecular Dynamics Trajectories for Weighted Ensemble simulations
+DeepWEST
+Deep learning approaches for Weighted Ensemble Simulations Toolkit  for faster and enhanced sampling of kinetics and thermodynamics
 """
 import sys
 from setuptools import setup, find_packages
@@ -21,7 +21,7 @@ except:
 
 setup(
     # Self-descriptive entries which should always be present
-    name='mdnet',
+    name='DeepWEST',
     author='Anupam Anand Ojha',
     author_email='anandojha.002@gmail.com',
     description=short_description[0],
