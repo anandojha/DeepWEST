@@ -268,6 +268,24 @@ def fix_cap_replace_nme(pdb_file):
     fin.write(data)
     fin.close()
 
+def fix_cap_replace_nme_H(pdb_file):
+
+    """
+    Replaces the hydrogen atoms of the
+    capped NME residue with a standard name.
+
+    """
+
+    fin = open(pdb_file, "rt")
+    data = fin.read()
+    data = data.replace("H1  NME", "H31 NME")
+    data = data.replace("H2  NME", "H32 NME")
+    data = data.replace("H3  NME", "H33 NME")
+    fin.close()
+    fin = open(pdb_file, "wt")
+    fin.write(data)
+    fin.close()
+
 
 def create_westpa_dir(traj_file, top, indices):
     os.system("rm -rf westpa_dir")
