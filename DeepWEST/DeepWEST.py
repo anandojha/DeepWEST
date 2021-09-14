@@ -37,8 +37,6 @@ def get_alad_traj_pdb_from_nc_solvent(
     trajec = trajec[start:stop:stride]
     print(trajec)
     trajec.save_pdb(traj_pdb, force_overwrite=True)
-    command = "rm -rf " + ref_pdb
-    os.system(command)
     fin = open(traj_pdb, "rt")
     fout = open("intermediate_I.txt", "wt")
     for line in fin:
