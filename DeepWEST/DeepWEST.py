@@ -21,10 +21,10 @@ import re
 def get_traj_pdb_from_nc_solvent(
     traj,
     top,
+    traj_pdb,
     start=0,
     stop=100000,
     stride=1,
-    traj_pdb="alad_multi.pdb",
 ):
 
     """
@@ -84,23 +84,95 @@ def get_traj_pdb_from_nc_solvent(
     command = "rm -rf intermediate_I.txt intermediate_II.txt intermediate_III.txt intermediate_IV.txt intermediate_V.txt intermediate_VI.txt"
     os.system(command)
 
-    
-
 def get_alad_traj_pdb_from_nc(
     traj,
     ref_pdb="reference.pdb",
     start=0,
-    stop=250000,
+    stop=100000,
     stride=1,
     traj_pdb="alad_multi.pdb",
 ):
 
     """
-    Converts NETCDF trajectory data withoit solvent to a multiPDB trajectory data
+    Converts NETCDF trajectory data without solvent to a multiPDB trajectory data
     """
     command = "curl -O http://ftp.imp.fu-berlin.de/pub/cmb-data/alanine-dipeptide-nowater.pdb"
     os.system(command)
     command = "mv alanine-dipeptide-nowater.pdb " + ref_pdb
+    os.system(command)
+    topology = md.load(ref_pdb).topology
+    print(topology)
+    trajec = md.load(traj, top=ref_pdb)
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    trajec.save_pdb(traj_pdb, force_overwrite=True)
+    command = "rm -rf " + ref_pdb
+    os.system(command)
+    fin = open(traj_pdb, "rt")
+    fout = open("intermediate_I.txt", "wt")
+    for line in fin:
+        fout.write(line.replace("ENDMDL", "END"))
+    fin.close()
+    fout.close()
+    file1 = open("intermediate_I.txt", "r")
+    file2 = open("intermediate_II.txt", "w")
+    for line in file1.readlines():
+        if not (line.startswith("TER")):
+            file2.write(line)
+    file2.close()
+    file1.close()
+    file1 = open("intermediate_II.txt", "r")
+    file2 = open("intermediate_III.txt", "w")
+    for line in file1.readlines():
+        if not (line.startswith("REMARK")):
+            file2.write(line)
+    file2.close()
+    file1.close()
+    file1 = open("intermediate_III.txt", "r")
+    file2 = open("intermediate_IV.txt", "w")
+    for line in file1.readlines():
+        if not (line.startswith("MODEL")):
+            file2.write(line)
+    file2.close()
+    file1.close()
+    file1 = open("intermediate_IV.txt", "r")
+    file2 = open("intermediate_V.txt", "w")
+    for line in file1.readlines():
+        if not (line.startswith("CRYST")):
+            file2.write(line)
+    file2.close()
+    file1.close()
+    file1 = open("intermediate_V.txt", "r")
+    file2 = open("intermediate_VI.txt", "w")
+    for line in file1.readlines():
+        if not (line.startswith("CONECT")):
+            file2.write(line)
+    file2.close()
+    file1.close()
+    with open("intermediate_VI.txt") as f1:
+        lines = f1.readlines()
+    with open(traj_pdb, "w") as f2:
+        f2.writelines(lines[:-1])
+    command = "rm -rf intermediate_I.txt intermediate_II.txt intermediate_III.txt intermediate_IV.txt intermediate_V.txt intermediate_VI.txt"
+    os.system(command)
+
+def get_chignolin_traj_pdb_from_nc(
+    traj,
+    ref_pdb="reference.pdb",
+    start=0,
+    stop=100000,
+    stride=1,
+    traj_pdb="chig_multi.pdb",
+):
+
+    """
+    Converts NETCDF trajectory data without solvent to a multiPDB trajectory data
+    """
+    command = "curl -O https://files.rcsb.org/download/1UAO.pdb1.gz"
+    os.system(command)
+    command = "gunzip 1UAO.pdb1.gz"
+    os.system(command)
+    command = "mv 1UAO.pdb1 " + ref_pdb
     os.system(command)
     topology = md.load(ref_pdb).topology
     print(topology)
