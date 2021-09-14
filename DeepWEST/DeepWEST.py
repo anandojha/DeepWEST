@@ -18,8 +18,7 @@ import os
 import re
 
 ################ Amber Trjaectory to array ################
-
-def get_alad_traj_pdb_from_nc_solvent(
+def get_traj_pdb_from_nc_solvent(
     traj,
     top,
     start=0,
@@ -29,7 +28,7 @@ def get_alad_traj_pdb_from_nc_solvent(
 ):
 
     """
-    Converts NETCDF trajectry data to a multiPDB trajectory data
+    Converts NETCDF trajectory data with solvent to a multiPDB trajectory data
     """
 
     trajec = md.load(traj, top=top)
@@ -97,7 +96,7 @@ def get_alad_traj_pdb_from_nc(
 ):
 
     """
-    Converts NETCDF trajectry data to a multiPDB trajectory data
+    Converts NETCDF trajectory data withoit solvent to a multiPDB trajectory data
     """
     command = "curl -O http://ftp.imp.fu-berlin.de/pub/cmb-data/alanine-dipeptide-nowater.pdb"
     os.system(command)
