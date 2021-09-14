@@ -19,6 +19,75 @@ import re
 
 ################ Amber Trjaectory to array ################
 
+def get_alad_traj_pdb_from_nc_solvent(
+    traj,
+    top,
+    start=0,
+    stop=100000,
+    stride=1,
+    traj_pdb="alad_multi.pdb",
+):
+
+    """
+    Converts NETCDF trajectry data to a multiPDB trajectory data
+    """
+
+    trajec = md.load(traj, top=top)
+    trajec = trajec.remove_solvent()
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    trajec.save_pdb(traj_pdb, force_overwrite=True)
+    command = "rm -rf " + ref_pdb
+    os.system(command)
+    fin = open(traj_pdb, "rt")
+    fout = open("intermediate_I.txt", "wt")
+    for line in fin:
+        fout.write(line.replace("ENDMDL", "END"))
+    fin.close()
+    fout.close()
+    file1 = open("intermediate_I.txt", "r")
+    file2 = open("intermediate_II.txt", "w")
+    for line in file1.readlines():
+        if not (line.startswith("TER")):
+            file2.write(line)
+    file2.close()
+    file1.close()
+    file1 = open("intermediate_II.txt", "r")
+    file2 = open("intermediate_III.txt", "w")
+    for line in file1.readlines():
+        if not (line.startswith("REMARK")):
+            file2.write(line)
+    file2.close()
+    file1.close()
+    file1 = open("intermediate_III.txt", "r")
+    file2 = open("intermediate_IV.txt", "w")
+    for line in file1.readlines():
+        if not (line.startswith("MODEL")):
+            file2.write(line)
+    file2.close()
+    file1.close()
+    file1 = open("intermediate_IV.txt", "r")
+    file2 = open("intermediate_V.txt", "w")
+    for line in file1.readlines():
+        if not (line.startswith("CRYST")):
+            file2.write(line)
+    file2.close()
+    file1.close()
+    file1 = open("intermediate_V.txt", "r")
+    file2 = open("intermediate_VI.txt", "w")
+    for line in file1.readlines():
+        if not (line.startswith("CONECT")):
+            file2.write(line)
+    file2.close()
+    file1.close()
+    with open("intermediate_VI.txt") as f1:
+        lines = f1.readlines()
+    with open(traj_pdb, "w") as f2:
+        f2.writelines(lines[:-1])
+    command = "rm -rf intermediate_I.txt intermediate_II.txt intermediate_III.txt intermediate_IV.txt intermediate_V.txt intermediate_VI.txt"
+    os.system(command)
+
+    
 
 def get_alad_traj_pdb_from_nc(
     traj,
@@ -119,7 +188,7 @@ def create_heavy_atom_xyz(
     )
     print(trajec_xyz.shape)
     np.savetxt(heavy_atoms_array, trajec_xyz)
-
+    
 
 def create_phi_psi(traj, ref_pdb, phi_psi_txt, start=0, stop=500000, stride=1):
     trajec = md.load(traj, top=ref_pdb)
@@ -137,29 +206,6 @@ def create_phi_psi(traj, ref_pdb, phi_psi_txt, start=0, stop=500000, stride=1):
     )
     print(phi_psi.shape)
     np.savetxt(phi_psi_txt, phi_psi)
-
-
-def create_heavy_atom_xyz_solvent(
-    traj, top, heavy_atoms_array, start=0, stop=500000, stride=1
-):
-    trajec = md.load(traj, top=top)
-    trajec = trajec.remove_solvent()
-    trajec = trajec[start:stop:stride]
-    print(trajec)
-    topology = trajec.topology
-    print(topology)
-    df, bonds = topology.to_dataframe()
-    heavy_indices = list(df[df["element"] != "H"].index)
-    print(heavy_indices)
-    trajec = trajec.atom_slice(atom_indices=heavy_indices)
-    print(trajec)
-    trajec_xyz = trajec.xyz * 10
-    print(trajec_xyz.shape)
-    trajec_xyz = trajec_xyz.reshape(
-        (trajec.xyz.shape[0], trajec.xyz.shape[1] * trajec.xyz.shape[2])
-    )
-    print(trajec_xyz.shape)
-    np.savetxt(heavy_atoms_array, trajec_xyz)
 
 
 def create_phi_psi_solvent(
