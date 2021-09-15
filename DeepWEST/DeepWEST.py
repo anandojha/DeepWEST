@@ -1,5 +1,6 @@
 from sklearn.mixture import GaussianMixture
 import matplotlib.gridspec as gridspec
+from biopandas.pdb import PandasPdb
 from sklearn.cluster import KMeans
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
