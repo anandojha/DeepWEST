@@ -18,6 +18,19 @@ import os
 import re
 
 ################ Amber Trjaectory to array ################
+
+def get_non_H_unique_atoms(traj):
+    ppdb = PandasPdb()
+    ppdb.read_pdb(traj)
+    no_host_atoms = ppdb.df["ATOM"].shape[0]
+    df = ppdb.df["ATOM"]
+    unique_list = list(df.atom_name.unique())
+    #print(unique_list)
+    for word in unique_list[:]:
+        if word.startswith("H"):
+            unique_list.remove(word)
+    print(unique_list)
+
 def get_traj_pdb_from_nc_solvent(
     traj,
     top,
