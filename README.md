@@ -12,5 +12,5 @@ conda create -n deepwest python=3.7
 
 conda activate deepwest
 
-conda install -c conda-forge matplotlib scipy jupyterlab pandas tensorflow mdtraj scikit-learn seaborn pytorch openmm=7.5.0 biopandas pytorch tensorflow
+conda install -c conda-forge matplotlib scipy jupyterlab pandas tensorflow mdtraj scikit-learn seaborn pytorch openmm=7.5.0 biopandas
 
