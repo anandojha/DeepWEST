@@ -18,6 +18,78 @@ import scipy
 import os
 import re
 
+################ Chignolin Functions ################
+
+def create_chignolin_md_inputs(url = "https://files.rcsb.org/download/1UAO.pdb1.gz", 
+                               ref_pdb = "chignolin.pdb"):
+    command = "curl -O " + url
+    os.system(command)
+    command = "gunzip 1UAO.pdb1.gz"
+    os.system(command)
+    command = "mv 1UAO.pdb1 " + ref_pdb
+    os.system(command)
+    line_1 = "source leaprc.protein.ff14SB"
+    line_2 = "pdb = loadpdb " + ref_pdb
+    line_3 = "saveamberparm pdb " + ref_pdb[:-4] + ".prmtop " + ref_pdb[:-4] + ".inpcrd"
+    line_4 = "savepdb pdb " + ref_pdb[:-4] + "_for_amber.pdb"
+    line_5 = "quit"
+    with open("chig.leap", "w") as f:
+        f.write("    " + "\n")
+        f.write(line_1 + "\n")
+        f.write(line_2 + "\n")
+        f.write(line_3 + "\n")
+        f.write(line_4 + "\n")
+        f.write(line_5 + "\n")
+    command = "tleap -f chig.leap"
+    os.system(command)
+    command = "rm -rf chig.leap leap.log"
+    os.system(command)
+    
+def input_chig_implicit_md(imin = 0, irest = 0, ntx = 1, dt = 0.002, ntc = 2, tol = 0.000001, 
+                         igb = 5, cut = 1000.00, ntt = 3, temp0 = 300.0, gamma_ln = 1.0, 
+                         ntpr = 500, ntwr = 500, ntxo = 2, ioutfm = 1, ig = -1, ntwprt = 0, 
+                         md_input_file = "md.in", nstlim = 2500000000, ntwx = 25000):
+    line_1 = "&cntrl"
+    line_2 = "  " + "imin" + "=" + str(imin) + "," + "irest" + "=" + str(irest) + "," + "ntx" + "=" + str(ntx) + ","
+    line_3 = "  " + "nstlim" + "=" + str(nstlim) + ", " + "dt" + "=" + str(dt) + "," + "ntc" + "=" + str(ntc) + ","
+    line_4 = "  " + "tol" + "=" + str(tol) + "," + "igb" + "=" + str(igb) + "," + "cut" + "=" + str(cut) + ","
+    line_5 = "  " + "ntt" + "=" + str(ntt) + "," + "temp0" + "=" + str(temp0) + "," + "gamma_ln" + "=" + str(gamma_ln) + ","
+    line_6 = "  " + "ntpr" + "=" + str(ntpr) + "," + "ntwx" + "=" + str(ntwx) + "," + "ntwr" + "=" + str(ntwr) + ","
+    line_7 = "  " + "ntxo" + "=" + str(ntxo) + "," + "ioutfm" + "=" + str(ioutfm) + "," + "ig" + "=" + str(ig) + ","
+    line_8 = "  " + "ntwprt" + "=" + str(ntwprt) + ","
+    line_9 = "&end"
+    with open(md_input_file, "w") as f:
+        f.write("    " + "\n")
+        f.write(line_1 + "\n")
+        f.write(line_2 + "\n")
+        f.write(line_3 + "\n")
+        f.write(line_4 + "\n")
+        f.write(line_5 + "\n")
+        f.write(line_6 + "\n")
+        f.write(line_7 + "\n")
+        f.write(line_8 + "\n")
+        f.write(line_9 + "\n")
+        
+def run_chignolin_md_cpu(md_input_file = "md.in", output_file = "chignolin.out",
+                         prmtopfile = "chignolin.prmtop", inpcrd_file = "chignolin.inpcrd", 
+                         rst_file = "chignolin.rst", traj_file = "chignolin.nc"):
+
+    command = "sander -O -i " + md_input_file + " -o " + output_file + " -p " + prmtopfile + " -c " + inpcrd_file + " -r " + rst_file + " -x " +  traj_file
+    print("Running Amber MD simulations")
+    os.system(command)
+    
+def create_chignolin_traj_for_molearn(traj="chignolin.nc", ref_pdb="chignolin_for_amber.pdb", 
+                                      start=0, stop=100000, stride=100, traj_pdb="chig_multi.pdb"):
+    topology = md.load(ref_pdb).topology
+    print(topology)
+    trajec = md.load(traj, top=ref_pdb)
+    print(trajec)
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    trajec.save_pdb(traj_pdb, force_overwrite=True)  
+
+################ Chignolin Functions ################
+
 ################ Amber Trjaectory to array ################
 
 def get_non_H_unique_atoms(traj):
@@ -26,11 +98,10 @@ def get_non_H_unique_atoms(traj):
     no_host_atoms = ppdb.df["ATOM"].shape[0]
     df = ppdb.df["ATOM"]
     unique_list = list(df.atom_name.unique())
-    #print(unique_list)
     for word in unique_list[:]:
         if word.startswith("H"):
             unique_list.remove(word)
-    print(unique_list)
+    return(unique_list)
 
 def get_traj_pdb_from_nc_solvent(
     traj,
@@ -788,8 +859,6 @@ def pdbs_from_indices(indices, traj_file, ref_pdb):
 
 
 ################ VAMPnet ################
-
-
 class VampnetTools(object):
 
     """
