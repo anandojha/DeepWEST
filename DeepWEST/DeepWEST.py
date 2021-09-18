@@ -88,6 +88,14 @@ def create_chignolin_traj_for_molearn(traj="chignolin.nc", ref_pdb="chignolin_fo
     print(trajec)
     trajec.save_pdb(traj_pdb, force_overwrite=True)  
 
+"""
+create_chignolin_md_inputs()
+input_chig_implicit_md()
+run_chignolin_md_cpu()
+create_chignolin_traj_for_molearn(stop = 100, stride = 10)
+create_chignolin_traj_for_molearn(traj = "system_final.nc", stop = 100000, stride = 100)
+"""
+
 ################ Chignolin Functions ################
 
 ################ Amber Trjaectory to array ################
