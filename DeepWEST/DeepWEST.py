@@ -18,6 +18,21 @@ import scipy
 import os
 import re
 
+################ Common Functions ################
+
+def get_non_H_unique_atoms(traj):
+    ppdb = PandasPdb()
+    ppdb.read_pdb(traj)
+    no_host_atoms = ppdb.df["ATOM"].shape[0]
+    df = ppdb.df["ATOM"]
+    unique_list = list(df.atom_name.unique())
+    for word in unique_list[:]:
+        if word.startswith("H"):
+            unique_list.remove(word)
+    return(unique_list)
+
+################ Common Functions ################
+
 ################ Chignolin Functions ################
 
 def create_chignolin_md_inputs(url = "https://files.rcsb.org/download/1UAO.pdb1.gz", 
@@ -79,7 +94,7 @@ def run_chignolin_md_cpu(md_input_file = "md.in", output_file = "chignolin.out",
     os.system(command)
     
 def create_chignolin_traj_for_molearn(traj="chignolin.nc", ref_pdb="chignolin_for_amber.pdb", 
-                                      start=0, stop=100000, stride=100, traj_pdb="chig_multi.pdb"):
+                                      start=0, stop=100000, stride=1, traj_pdb="chig_multi.pdb"):
     topology = md.load(ref_pdb).topology
     print(topology)
     trajec = md.load(traj, top=ref_pdb)
@@ -92,13 +107,110 @@ def create_chignolin_traj_for_molearn(traj="chignolin.nc", ref_pdb="chignolin_fo
 create_chignolin_md_inputs()
 input_chig_implicit_md()
 run_chignolin_md_cpu()
-create_chignolin_traj_for_molearn(stop = 100, stride = 10)
-create_chignolin_traj_for_molearn(traj = "system_final.nc", stop = 100000, stride = 100)
+create_chignolin_traj_for_molearn()
 """
-
 ################ Chignolin Functions ################
 
-################ Amber Trjaectory to array ################
+################ Alanine Dipeptide Functions ################
+
+def fix_cap_replace_nme(pdb_file):
+
+    """
+    Replaces the alpha carbon atom of the
+    capped NME residue with a standard name.
+
+    """
+
+    fin = open(pdb_file, "rt")
+    data = fin.read()
+    data = data.replace("CA  NME", "CH3 NME")
+    data = data.replace("C   NME", "CH3 NME")
+    fin.close()
+    fin = open(pdb_file, "wt")
+    fin.write(data)
+    fin.close()
+
+def fix_cap_replace_nme_H(pdb_file):
+
+    """
+    Replaces the hydrogen atoms of the
+    capped NME residue with a standard name.
+
+    """
+
+    fin = open(pdb_file, "rt")
+    data = fin.read()
+    data = data.replace("H1  NME", "H31 NME")
+    data = data.replace("H2  NME", "H32 NME")
+    data = data.replace("H3  NME", "H33 NME")
+    fin.close()
+    fin = open(pdb_file, "wt")
+    fin.write(data)
+    fin.close()
+
+def create_alanine_dipeptide_md_inputs(url = "http://ftp.imp.fu-berlin.de/pub/cmb-data/alanine-dipeptide-nowater.pdb", 
+                               ref_pdb = "alanine_dipeptide.pdb"):
+    command = "curl -O " + url
+    os.system(command)
+    command = "mv alanine-dipeptide-nowater.pdb " + ref_pdb
+    os.system(command)
+    file1 = open(ref_pdb, "r")
+    file2 = open("intermediate.pdb", "w")
+    for line in file1.readlines():
+        if "HH" not in line:
+            file2.write(line) 
+    file1.close()
+    file2.close()
+    command = "mv intermediate.pdb " + ref_pdb 
+    os.system(command)
+    line_1 = "source leaprc.protein.ff14SB"
+    line_2 = "pdb = loadpdb " + ref_pdb
+    line_3 = "saveamberparm pdb " + ref_pdb[:-4] + ".prmtop " + ref_pdb[:-4] + ".inpcrd"
+    line_4 = "savepdb pdb " + ref_pdb[:-4] + "_for_amber.pdb"
+    line_5 = "quit"
+    with open("alad.leap", "w") as f:
+        f.write("    " + "\n")
+        f.write(line_1 + "\n")
+        f.write(line_2 + "\n")
+        f.write(line_3 + "\n")
+        f.write(line_4 + "\n")
+        f.write(line_5 + "\n")
+    command = "tleap -f alad.leap"
+    os.system(command)
+    command = "rm -rf alad.leap leap.log"
+    os.system(command)
+    
+def save_alanine_dipeptide_solv_to_no_solvent(traj="alanine_dipeptide.nc", 
+                                              start=0, stop=100000, stride=1, 
+                                              traj_pdb="alanine_dipeptide_.nc",
+                                              top = "alanine_dipeptide.prmtop"):
+    trajec = md.load(traj, top=top)
+    print(trajec)
+    trajec = trajec.remove_solvent()
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    trajec.save_netcdf(traj_pdb, force_overwrite=True)  
+    
+def create_alanine_dipeptide_traj_for_molearn(traj="alanine_dipeptide_.nc", 
+                                              ref_pdb="alanine_dipeptide_for_amber.pdb", 
+                                              start=0, stop=100000, stride=1, 
+                                              traj_pdb="alad_multi.pdb"):
+    topology = md.load(ref_pdb).topology
+    print(topology)
+    trajec = md.load(traj, top=ref_pdb)
+    print(trajec)
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    trajec.save_pdb(traj_pdb, force_overwrite=True)  
+
+"""
+create_alanine_dipeptide_md_inputs()
+save_alanine_dipeptide_solv_to_no_solvent()
+create_alanine_dipeptide_traj_for_molearn()
+"""
+################ Alanine Dipeptide Functions ################
+
+################ Arbitrary Functions ################
 
 def get_non_H_unique_atoms(traj):
     ppdb = PandasPdb()
@@ -459,40 +571,6 @@ def fix_cap_remove_nme(pdb_file):
     os.system(command)
 
 
-def fix_cap_replace_nme(pdb_file):
-
-    """
-    Replaces the alpha carbon atom of the
-    capped NME residue with a standard name.
-
-    """
-
-    fin = open(pdb_file, "rt")
-    data = fin.read()
-    data = data.replace("CA  NME", "CH3 NME")
-    data = data.replace("C   NME", "CH3 NME")
-    fin.close()
-    fin = open(pdb_file, "wt")
-    fin.write(data)
-    fin.close()
-
-def fix_cap_replace_nme_H(pdb_file):
-
-    """
-    Replaces the hydrogen atoms of the
-    capped NME residue with a standard name.
-
-    """
-
-    fin = open(pdb_file, "rt")
-    data = fin.read()
-    data = data.replace("H1  NME", "H31 NME")
-    data = data.replace("H2  NME", "H32 NME")
-    data = data.replace("H3  NME", "H33 NME")
-    fin.close()
-    fin = open(pdb_file, "wt")
-    fin.write(data)
-    fin.close()
 
 
 def create_westpa_dir(traj_file, top, indices):
@@ -749,9 +827,9 @@ def create_westpa_filetree():
 def add_dihedral_input(traj_whole, dihedral):
     return np.hstack((traj_whole, dihedral))
 
+################ Arbitrary Functions ################
 
 ################ K-Means Clustering #############
-
 
 def tsne_visualize(traj_data):
     tsne = TSNE(n_components=2, perplexity=100)
@@ -865,8 +943,10 @@ def pdbs_from_indices(indices, traj_file, ref_pdb):
         pdb_path = os.path.join(os.getcwd(), "westpa_dir/" + pdb_name)
         traj_frame.save_pdb(pdb_path, force_overwrite=True)
 
+################ K-Means Clustering #############
 
 ################ VAMPnet ################
+
 class VampnetTools(object):
 
     """
@@ -1135,6 +1215,8 @@ class VampnetTools(object):
         # cross-covariance matrix
         matrices = self._build_vamp_matrices(x, y, batch_size)
         cov_00_ir, cov_11_ir, cov_01 = matrices
+
+################ VAMPnet ################
 
         # Calculate the VAMP matrix
         vamp_matrix = tf.matmul(cov_00_ir, tf.matmul(cov_01, cov_11_ir))
