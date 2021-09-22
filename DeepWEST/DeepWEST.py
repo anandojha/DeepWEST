@@ -492,6 +492,7 @@ def save_1igd_solv_to_no_solvent(traj="1igd.nc",
     trajec = md.load(traj, top=top)
     print(trajec)
     trajec = trajec.remove_solvent()
+    trajec = md.Trajectory.superpose(trajec, reference = trajec[0])
     trajec = trajec[start:stop:stride]
     print(trajec)
     trajec.save_netcdf(traj_pdb, force_overwrite=True)
