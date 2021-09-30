@@ -47,11 +47,10 @@ vamp = DeepWEST.VampnetTools(epsilon = epsilon)
 # Shuffle trajectory and lagged trajectory together
 length_data = traj_data_points - tau
 traj_ord = traj_whole[:length_data]
-traj_ord_lag = traj_whole[tau : length_data + tau]
+traj_ord_lag = traj_whole[tau:length_data+tau]
 rmsd_rg_init = rmsd_rg[:length_data]
 indexes = np.arange(length_data)
 np.random.shuffle(indexes)
-shuff_indexes = indexes.copy()
 traj = traj_ord[indexes]
 traj_lag = traj_ord_lag[indexes]
 rmsd_rg_shuffle = rmsd_rg_init[indexes]
@@ -251,24 +250,22 @@ vamp.plot_its(its, lag, fig = "its_chignolin.jpg")
 steps = 8
 tau_msm = 35
 predicted, estimated = vamp.get_ck_test(pred_ord, steps, tau_msm)
-# vamp.plot_ck_test(predicted, estimated, output_size, steps, tau_msm)
+#vamp.plot_ck_test(predicted, estimated, output_size, steps, tau_msm)
 # Saving the frame indices to a txt file
-indices_list = [idxs[0].tolist() for idxs in indexes]
-sorted_indices = DeepWEST.get_pdbs_from_clusters(indices_list, num_pdbs=20, rmsd_rg=rmsd_rg_shuffle)
-# index_for_we = []
-# for i in sorted_indices:
-#     index_frames = list(list(i)[0])
-#     sel_frames = index_frames[:10]
-#     index_for_we.append(sel_frames)
-index_for_we = list(itertools.chain.from_iterable(sorted_indices))
+index_for_we = []
+for i in indexes:
+    index_frames = list(list(i)[0])
+    sel_frames = index_frames[:10]
+    index_for_we.append(sel_frames)
+index_for_we = list(itertools.chain.from_iterable(index_for_we))
 print(len(index_for_we))
 np.savetxt("indices_vamp_chignolin.txt", index_for_we)
 current_cwd = os.getcwd()
-westpa_cwd = current_cwd + "/" + "westpa_dir"  # westpa directory pwd
+westpa_cwd = current_cwd + "/" + "westpa_dir" # westpa directory pwd 
 indices_vamp = np.loadtxt("indices_vamp_chignolin.txt")
 indices_vamp = [int(i) for i in indices_vamp]
-DeepWEST.create_westpa_dir(traj_file=traj_file, top=top, indices=indices_vamp, shuffled_indices=shuff_indexes)
+DeepWEST.create_westpa_dir(traj_file = traj_file, top = top, indices = indices_vamp)
 os.chdir(westpa_cwd)
-DeepWEST.run_min_chignolin_westpa_dir(traj=traj_file, top=top, cuda="unavailable")
+DeepWEST.run_min_chignolin_westpa_dir(traj = traj_file, top = top, cuda = "unavailable")
 DeepWEST.create_westpa_filetree()
 os.chdir(current_cwd)

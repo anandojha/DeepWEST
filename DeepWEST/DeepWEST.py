@@ -942,11 +942,23 @@ def extract_single_pdbs(dirname):
     command = f"rm -rf {last_pdb_path}"
     os.system(command)
 
+"""
 def create_westpa_dir(traj_file, top, indices):
     os.system("rm -rf westpa_dir")
     os.system("mkdir westpa_dir")
     for i in indices:
         traj_frame = md.load_frame(filename=traj_file, top=top, index=i)
+        pdb_name = str(i) + ".pdb"
+        pdb_path = os.path.join(os.getcwd(), "westpa_dir/" + pdb_name)
+        traj_frame.save_pdb(pdb_path, force_overwrite=True)
+"""
+
+def create_westpa_dir(traj_file, top, indices, shuffled_indices):
+    os.system("rm -rf westpa_dir")
+    os.system("mkdir westpa_dir")
+    for i in indices:
+        initial_idx = shuffled_indices[i]
+        traj_frame = md.load_frame(filename=traj_file, top=top, index=initial_idx)
         pdb_name = str(i) + ".pdb"
         pdb_path = os.path.join(os.getcwd(), "westpa_dir/" + pdb_name)
         traj_frame.save_pdb(pdb_path, force_overwrite=True)
