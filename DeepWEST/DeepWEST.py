@@ -159,7 +159,50 @@ def write_explicit_solvent_leap(
         f.write(line_8 + "\n")
         f.write(line_9 + "\n")
 
+def max_diff(rmsd_list, num_pdbs_by_2):
+    max_diff_indices = []
+    diff = dict()
+    for i in range(len(rmsd_list)):
+        for j in range(i + 1, len(rmsd_list)):
+            if abs(rmsd_list[i] - rmsd_list[j]) not in diff.keys():
+                diff[abs(rmsd_list[i] - rmsd_list[j])] = [[i, j]]
+            else:
+                diff[abs(rmsd_list[i] - rmsd_list[j])].append([i, j])
+    for i in sorted(diff.keys(), reverse=True):
+        if len(max_diff_indices) < (num_pdbs_by_2 * 2):
+            for j in diff[i]:
+                max_diff_indices.extend(j)
+            max_diff_indices = (list(set(max_diff_indices)))
+            continue
+    num_pdbs = int(num_pdbs_by_2*2)
+    return (max_diff_indices[:num_pdbs])
 
+
+def sort_pdbs_by_rmsd(rmsd_rg, indices, num_pdbs=20):
+
+    """
+    Returns the indices of the pdbs with maximally different rmsds
+
+    rmsd_rg_text: file containing the rmsd and rg values for all the frames
+    indices: frame indices belonging to one cluster
+    num_pdbs: number of pdbs needed from that cluster
+    """
+    rmsds = rmsd_rg[:,0]
+    print(rmsds.shape)
+    rmsds = [rmsds[x] for x in indices]
+    selected_pdbs = max_diff(rmsds, num_pdbs / 2)
+    return (selected_pdbs)
+
+def get_pdbs_from_clusters(indices, num_pdbs, rmsd_rg):
+
+    """
+    This function will return a total of len(indices) * num_pdbs indices to select the final pdbs
+    """
+    pdbs = []
+    for idx_list in indices:
+        s_pdbs = sort_pdbs_by_rmsd(rmsd_rg, idx_list, num_pdbs)
+        pdbs.append(s_pdbs)
+    return (pdbs)
 ################ Common Functions ################
 
 ################ Chignolin Functions ################
