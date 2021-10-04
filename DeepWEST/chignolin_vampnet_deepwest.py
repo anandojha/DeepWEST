@@ -20,12 +20,12 @@ heavy_atoms_file = os.path.join("heavy_atoms_md_chignolin.txt")
 rmsd_rg_file = os.path.join("rmsd_rg_md_chignolin.txt")
 # Define Parameters and Hyperparameters
 attempts = 1 #10
-start = 0 # 0
-stop = 5000 #500000
+start = 0 #0
+stop = 500000 #500000
 stride = 1 #1
-no_frames = 10 # Number of frames to be selected from each category
+no_frames = 50 # Number of frames to be selected from each category
 output_size = 3 # How many output states the network has (max = 6)
-tau = 1 # Tau, how much is the timeshift of the two datasets\
+tau = 60 # Tau, how much is the timeshift of the two datase
 batch_size = 1000 # Batch size for Stochastic Gradient descent
 train_ratio = 0.9 # Which trajectory points percentage is used as training
 network_depth = 6 # How many hidden layers the network has
@@ -254,7 +254,7 @@ predicted, estimated = vamp.get_ck_test(pred_ord, steps, tau_msm)
 # vamp.plot_ck_test(predicted, estimated, output_size, steps, tau_msm)
 # Saving the frame indices to a txt file
 indices_list = [idxs[0].tolist() for idxs in indexes]
-sorted_indices = DeepWEST.get_pdbs_from_clusters(indices_list, num_pdbs=20, rmsd_rg=rmsd_rg_shuffle)
+sorted_indices = DeepWEST.get_pdbs_from_clusters(indices_list, num_pdbs=no_frames, rmsd_rg=rmsd_rg_shuffle)
 # index_for_we = []
 # for i in sorted_indices:
 #     index_frames = list(list(i)[0])

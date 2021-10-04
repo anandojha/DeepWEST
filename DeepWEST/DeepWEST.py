@@ -992,7 +992,7 @@ def run_min_alanine_dipeptide_westpa_dir(traj, top, cuda = "available"):
     for i in pdb_list:
         pdb_file = i
         line_1 = "source leaprc.protein.ff14SB"
-        line_2 = "source leaprc.water.tip3p"
+        line_2 = "source leaprc.water.tip4pew"
         line_3 = "set default FlexibleWater on"
         line_4 = "set default PBRadii mbondi2"
         line_5 = "pdb = loadpdb " + pdb_file
