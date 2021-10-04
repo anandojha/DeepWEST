@@ -19,6 +19,7 @@ traj_file = os.path.join(data_dir, "alanine_dipeptide_250ns_250000steps.nc")
 top = os.path.join(data_dir, "alanine_dipeptide.prmtop")
 heavy_atoms_file = os.path.join("heavy_atoms_md_alanine_dipeptide.txt")
 phi_psi_file = os.path.join("phi_psi_md_alanine_dipeptide.txt")
+rmsd_rg_file = os.path.join("rmsd_rg_md_alanine_dipeptide.txt")
 # Define Hyperparameters and parameters
 attempts = 1 #10
 start = 0 # 0
@@ -38,10 +39,13 @@ epsilon = 1e-5  # epsilon
 # Define data points
 DeepWEST.create_heavy_atom_xyz_solvent(traj = traj_file, top = top, heavy_atoms_array = heavy_atoms_file, start = start, stop = stop, stride = stride)
 DeepWEST.create_phi_psi_solvent_alanine_dipeptide(traj = traj_file, top = top, phi_psi_txt = phi_psi_file, start = start, stop = stop, stride = stride)
+DeepWEST.create_rmsd_rg_alanine_dipeptide_top(traj = traj_file, top = top, rmsd_rg_txt = rmsd_rg_file, start = start, stop = stop, stride = stride)
 traj_whole = np.loadtxt(heavy_atoms_file)
 print(traj_whole.shape)
 dihedral = np.loadtxt(phi_psi_file)
 print(dihedral.shape)
+rmsd_rg = np.loadtxt(rmsd_rg_file)
+print(rmsd_rg.shape)
 traj_data_points, input_size = traj_whole.shape
 # Initialized the VAMPnets wrapper class
 vamp = DeepWEST.VampnetTools(epsilon = epsilon)
@@ -50,11 +54,14 @@ length_data = traj_data_points - tau
 traj_ord = traj_whole[:length_data]
 traj_ord_lag = traj_whole[tau:length_data+tau]
 dihedral_init = dihedral[:length_data]
+rmsd_rg_init = rmsd_rg[:length_data]
 indexes = np.arange(length_data)
 np.random.shuffle(indexes)
+shuff_indexes = indexes.copy()
 traj = traj_ord[indexes]
 traj_lag = traj_ord_lag[indexes]
 dihedral_shuffle = dihedral_init[indexes]
+rmsd_rg_shuffle = rmsd_rg_init[indexes]
 # Prepare data for tensorflow usage
 length_train = int(np.floor(length_data * train_ratio))
 length_vali = length_data - length_train
@@ -253,19 +260,21 @@ tau_msm = 35
 predicted, estimated = vamp.get_ck_test(pred_ord, steps, tau_msm)
 #vamp.plot_ck_test(predicted, estimated, output_size, steps, tau_msm)
 # Saving the frame indices to a txt file
-index_for_we = []
-for i in indexes:
-    index_frames = list(list(i)[0])
-    sel_frames = index_frames[:no_frames]
-    index_for_we.append(sel_frames)
-index_for_we = list(itertools.chain.from_iterable(index_for_we))
+indices_list = [idxs[0].tolist() for idxs in indexes]
+sorted_indices = DeepWEST.get_pdbs_from_clusters(indices_list, num_pdbs=20, rmsd_rg=rmsd_rg_shuffle)
+# index_for_we = []
+# for i in indexes:
+#     index_frames = list(list(i)[0])
+#     sel_frames = index_frames[:no_frames]
+#     index_for_we.append(sel_frames)
+index_for_we = list(itertools.chain.from_iterable(sorted_indices))
 print(len(index_for_we))
 np.savetxt("indices_vamp_alanine_dipeptide.txt", index_for_we)
 current_cwd = os.getcwd()
 westpa_cwd = current_cwd + "/" + "westpa_dir" # westpa directory pwd 
 indices_vamp = np.loadtxt("indices_vamp_alanine_dipeptide.txt")
 indices_vamp = [int(i) for i in indices_vamp]
-DeepWEST.create_westpa_dir(traj_file = traj_file, top = top, indices = indices_vamp)
+DeepWEST.create_westpa_dir(traj_file = traj_file, top = top, indices = indices_vamp, shuffled_indices=shuff_indexes)
 os.chdir(westpa_cwd)
 DeepWEST.run_min_alanine_dipeptide_westpa_dir(traj = traj_file, top = top, cuda = "unavailable")
 DeepWEST.create_westpa_filetree()

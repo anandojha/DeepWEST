@@ -380,6 +380,19 @@ def create_alanine_dipeptide_traj_for_molearn(traj="alanine_dipeptide_.nc",
     print(trajec)
     trajec.save_pdb(traj_pdb, force_overwrite=True)  
 
+def create_rmsd_rg_alanine_dipeptide_top(traj, top, rmsd_rg_txt, start = 0, stop = 100000, stride = 1):
+    trajec = md.load(traj, top = top)
+    trajec = trajec.remove_solvent()
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    rmsd = md.rmsd(trajec, trajec, 0)
+    print(rmsd.shape)
+    rg = md.compute_rg(trajec)
+    print(rg.shape)
+    rmsd_rg = np.array([list(x) for x in zip(list(rmsd), list(rg))])
+    print(rmsd_rg.shape)
+    np.savetxt(rmsd_rg_txt, rmsd_rg)
+
 """
 create_alanine_dipeptide_md_inputs()
 save_alanine_dipeptide_solv_to_no_solvent()
