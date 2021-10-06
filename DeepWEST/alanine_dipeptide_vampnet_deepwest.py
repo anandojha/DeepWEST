@@ -25,9 +25,9 @@ attempts = 1 #10
 start = 0 #0
 stop = 250000 #250000
 stride = 1 #1
-no_frames = 50 # Number of frames to be selected from each output state 
-output_size = 3 # How many output states the network has (max = 6)
-tau = 60 # Tau, how much is the timeshift of the two datasets
+no_frames = 10 # Number of frames to be selected from each bin in the output state 
+output_size = 4 # How many output states the network has (max = 6)
+tau = 50 # Tau, how much is the timeshift of the two datasets
 batch_size = 1000 # Batch size for Stochastic Gradient descent
 train_ratio = 0.9 # Which trajectory points percentage is used as training
 network_depth = 6 # How many hidden layers the network has
@@ -261,12 +261,9 @@ predicted, estimated = vamp.get_ck_test(pred_ord, steps, tau_msm)
 #vamp.plot_ck_test(predicted, estimated, output_size, steps, tau_msm)
 # Saving the frame indices to a txt file
 indices_list = [idxs[0].tolist() for idxs in indexes]
-sorted_indices = DeepWEST.get_pdbs_from_clusters(indices_list, num_pdbs=no_frames, rmsd_rg=rmsd_rg_shuffle)
-# index_for_we = []
-# for i in indexes:
-#     index_frames = list(list(i)[0])
-#     sel_frames = index_frames[:no_frames]
-#     index_for_we.append(sel_frames)
+print("Saving indices")
+sorted_indices = DeepWEST.get_pdbs_from_clusters(indices = indices_list, rmsd_rg=rmsd_rg_shuffle, num_pdbs = no_frames)
+print("Saved indices")
 index_for_we = list(itertools.chain.from_iterable(sorted_indices))
 print(len(index_for_we))
 np.savetxt("indices_vamp_alanine_dipeptide.txt", index_for_we)

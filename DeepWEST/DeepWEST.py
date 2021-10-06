@@ -159,50 +159,55 @@ def write_explicit_solvent_leap(
         f.write(line_8 + "\n")
         f.write(line_9 + "\n")
 
-def max_diff(rmsd_list, num_pdbs_by_2):
-    max_diff_indices = []
-    diff = dict()
-    for i in range(len(rmsd_list)):
-        for j in range(i + 1, len(rmsd_list)):
-            if abs(rmsd_list[i] - rmsd_list[j]) not in diff.keys():
-                diff[abs(rmsd_list[i] - rmsd_list[j])] = [[i, j]]
-            else:
-                diff[abs(rmsd_list[i] - rmsd_list[j])].append([i, j])
-    for i in sorted(diff.keys(), reverse=True):
-        if len(max_diff_indices) < (num_pdbs_by_2 * 2):
-            for j in diff[i]:
-                max_diff_indices.extend(j)
-            max_diff_indices = (list(set(max_diff_indices)))
-            continue
-    num_pdbs = int(num_pdbs_by_2*2)
-    return (max_diff_indices[:num_pdbs])
+def create_bins(lower_bound, width, upper_bound):
+    bins = []
+    for low in np.arange(lower_bound, upper_bound, width):
+        bins.append([low, low + width])
+    return bins
 
+def find_bin(value, bins):
+    for i in range(0, len(bins)):
+        if bins[i][0] <= value < bins[i][1]:
+            return i
+    return -1
 
-def sort_pdbs_by_rmsd(rmsd_rg, indices, num_pdbs=20):
+def select_pdbs_by_binning(rmsds, indices, bins, num_pdbs):
+    rmsd_binned_lists = []
+    for i in range(len(bins)):
+        bin_name = []
+        for j, value in enumerate(rmsds):
+            bin_index = find_bin(value, bins)
+            if bin_index == i:
+                bin_name.append(indices[j])
+        rmsd_binned_lists.append(bin_name)
+    # print(rmsd_binned_lists)
+    selected_pdbs = []
+    print(len(rmsd_binned_lists[0]))
+    for i in range(len(rmsd_binned_lists)):
+        if len(rmsd_binned_lists[i]) <= num_pdbs:
+            for idx in rmsd_binned_lists[i]:
+                selected_pdbs.append(idx)
+        else:
+            rand_idxs = np.random.randint(0, len(rmsd_binned_lists[i]), size=num_pdbs)
+            rand_idxs = rand_idxs.tolist()
+            for j, idx in enumerate(rmsd_binned_lists[i]):
+                if j in rand_idxs:
+                    selected_pdbs.append(idx)
+    # print(selected_pdbs)
+    return selected_pdbs
 
-    """
-    Returns the indices of the pdbs with maximally different rmsds
-
-    rmsd_rg_text: file containing the rmsd and rg values for all the frames
-    indices: frame indices belonging to one cluster
-    num_pdbs: number of pdbs needed from that cluster
-    """
-    rmsds = rmsd_rg[:,0]
-    print(rmsds.shape)
-    rmsds = [rmsds[x] for x in indices]
-    selected_pdbs = max_diff(rmsds, num_pdbs / 2)
-    return (selected_pdbs)
-
-def get_pdbs_from_clusters(indices, num_pdbs, rmsd_rg):
-
-    """
-    This function will return a total of len(indices) * num_pdbs indices to select the final pdbs
-    """
+def get_pdbs_from_clusters(indices, rmsd_rg, num_pdbs, num_bins = 10):
     pdbs = []
     for idx_list in indices:
-        s_pdbs = sort_pdbs_by_rmsd(rmsd_rg, idx_list, num_pdbs)
+        rmsds = rmsd_rg[:, 0]
+        rmsds = [rmsds[x] for x in idx_list]
+        print("Length of rmsd list: ", len(rmsds))
+        rmsd_min = min(rmsds)
+        rmsd_max = max(rmsds)
+        bins = create_bins(rmsd_min, (rmsd_max-rmsd_min)/num_bins, rmsd_max)
+        s_pdbs = select_pdbs_by_binning(rmsds, idx_list, bins, num_pdbs)
         pdbs.append(s_pdbs)
-    return (pdbs)
+    return pdbs
 ################ Common Functions ################
 
 ################ Chignolin Functions ################
@@ -954,17 +959,6 @@ def extract_single_pdbs(dirname):
     last_pdb_path = os.path.join(pwd, "extracted_pdbs", last_pdb)
     command = f"rm -rf {last_pdb_path}"
     os.system(command)
-
-"""
-def create_westpa_dir(traj_file, top, indices):
-    os.system("rm -rf westpa_dir")
-    os.system("mkdir westpa_dir")
-    for i in indices:
-        traj_frame = md.load_frame(filename=traj_file, top=top, index=i)
-        pdb_name = str(i) + ".pdb"
-        pdb_path = os.path.join(os.getcwd(), "westpa_dir/" + pdb_name)
-        traj_frame.save_pdb(pdb_path, force_overwrite=True)
-"""
 
 def create_westpa_dir(traj_file, top, indices, shuffled_indices):
     os.system("rm -rf westpa_dir")
