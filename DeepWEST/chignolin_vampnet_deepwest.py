@@ -12,6 +12,7 @@ module_path = os.path.abspath(os.path.join(path_join))
 if module_path not in sys.path:
     sys.path.append(module_path)
 import DeepWEST 
+DeepWEST.get_chignolin_ref_pdb()
 # Load Data ( .prmtop and .nc should be present)
 data_dir = os.getcwd()
 traj_file = os.path.join(data_dir, "chignolin_500ns_500000steps.nc")
@@ -254,9 +255,6 @@ predicted, estimated = vamp.get_ck_test(pred_ord, steps, tau_msm)
 # vamp.plot_ck_test(predicted, estimated, output_size, steps, tau_msm)
 # Saving the frame indices to a txt file
 indices_list = [idxs[0].tolist() for idxs in indexes]
-
-
-
 print("Saving indices")
 sorted_indices = DeepWEST.get_pdbs_from_clusters(indices = indices_list, rmsd_rg=rmsd_rg_shuffle, num_pdbs = no_frames)
 print("Saved indices")

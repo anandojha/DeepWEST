@@ -407,6 +407,15 @@ create_alanine_dipeptide_traj_for_molearn()
 
 ################ BPTI Functions ################
 
+def get_chignolin_ref_pdb():
+    ref_pdb = "system_final.pdb"
+    command = "curl -O https://files.rcsb.org/download/1UAO.pdb1.gz"
+    os.system(command)
+    command = "gunzip 1UAO.pdb1.gz"
+    os.system(command)
+    command = "mv 1UAO.pdb1 " + ref_pdb
+    os.system(command)
+
 def fix_cap_chignolin(pdb_file):
     remove_words = ["H   GLY A"]
     with open(pdb_file) as oldfile, open("intermediate.pdb", "w") as newfile:
@@ -1137,7 +1146,7 @@ def create_westpa_filetree():
     os.system("rm -rf CONFIG")
     os.system("mkdir CONFIG")
     prmtop_file = prmtop_list[0]
-    shutil.copy(current_dir + "/" + prmtop_file, target_dir + "/" + "system.prmtop")
+    shutil.copy(current_dir + "/" + prmtop_file, target_dir + "/" + "system_final.prmtop")
     command = "rm -rf *.pdb* *.inpcrd* *.prmtop* *.rst* *.out* "
     os.system(command)
 
