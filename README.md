@@ -1,7 +1,7 @@
 DeepWEST
 ==============================
 
-Machine Learning Analysis of Molecular Dynamics Trajectories for Weighted Ensemble simulations
+Deep Learning Analysis of Molecular Dynamics Trajectories for Weighted Ensemble simulations
 
 
 ## Installation and Setup Instructions :

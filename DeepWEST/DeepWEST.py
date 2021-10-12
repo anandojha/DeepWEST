@@ -1157,6 +1157,7 @@ def create_westpa_filetree():
 def create_heavy_atom_xyz_solvent(traj, top, heavy_atoms_array, start=0, stop=100000, stride=1):
     trajec = md.load(traj, top=top)
     trajec = trajec.remove_solvent()
+    trajec = md.Trajectory.superpose(trajec, reference = trajec[0])
     trajec = trajec[start:stop:stride]
     print(trajec)
     topology = trajec.topology
