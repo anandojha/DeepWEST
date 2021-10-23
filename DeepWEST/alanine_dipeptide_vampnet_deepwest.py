@@ -21,16 +21,16 @@ heavy_atoms_file = os.path.join("heavy_atoms_md_alanine_dipeptide.txt")
 phi_psi_file = os.path.join("phi_psi_md_alanine_dipeptide.txt")
 rmsd_rg_file = os.path.join("rmsd_rg_md_alanine_dipeptide.txt")
 # Define Hyperparameters and parameters
-attempts = 1 #10
+attempts = 5 #10
 start = 0 #0
 stop = 250000 #250000
 stride = 1 #1
 no_frames = 10 # Number of frames to be selected from each bin in the output state 
-output_size = 4 # How many output states the network has (max = 6)
-tau = 50 # Tau, how much is the timeshift of the two datasets
+output_size = 3 # How many output states the network has (max = 6)
+tau = 60 # Tau, how much is the timeshift of the two datasets
 batch_size = 1000 # Batch size for Stochastic Gradient descent
 train_ratio = 0.9 # Which trajectory points percentage is used as training
-network_depth = 6 # How many hidden layers the network has
+network_depth = 8 # How many hidden layers the network has
 layer_width = 100 # Width of every layer
 learning_rate = 1e-4 # Learning rate used for the ADAM optimizer
 nb_epoch = 60 # Iteration over the training set in the fitting process

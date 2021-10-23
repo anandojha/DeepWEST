@@ -12,6 +12,7 @@ from sys import stdout
 import seaborn as sns
 import pandas as pd
 import mdtraj as md
+import pytraj as pt
 import numpy as np
 import itertools
 import fnmatch
@@ -519,7 +520,7 @@ def gen_amber_files_bpti(
             pdb_list.append(x)
     for i in pdb_list :   
         ref_pdb = i
-        leap_file = "1igd.leap"
+        leap_file = "bpti.leap"
         line_1 = "source leaprc.protein.ff14SB"
         line_2 = "loadOff solvents.lib"
         line_3 = "loadOff tip4pbox.off"
@@ -528,7 +529,7 @@ def gen_amber_files_bpti(
         line_6 = "HOH = TP4"
         line_7 = "pdb = loadpdb " + ref_pdb
         line_8 = "charge pdb"
-        line_9 = "addions2 pdb Cl- " + str(Cl)
+        #line_9 = "addions2 pdb Cl- " + str(Cl)
         line_10 = "charge pdb"
         line_11 = "solvatebox pdb TIP4PEWBOX " + str(pad)
         line_12 = "saveamberparm pdb " + ref_pdb[:-4] + ".prmtop " + ref_pdb[:-4] + ".inpcrd"
@@ -544,7 +545,7 @@ def gen_amber_files_bpti(
             f.write(line_6 + "\n")
             f.write(line_7 + "\n")
             f.write(line_8 + "\n")
-            f.write(line_9 + "\n")
+            #f.write(line_9 + "\n")
             f.write(line_10 + "\n")
             f.write(line_11 + "\n")
             f.write(line_12 + "\n")
@@ -552,7 +553,7 @@ def gen_amber_files_bpti(
             f.write(line_14 + "\n")
         command = "tleap -f " + leap_file
         os.system(command)
-        command = "rm -rf leap.log 1igd.leap"
+        command = "rm -rf leap.log bpti.leap"
         os.system(command)
         command = "mv " + ref_pdb + " " + " " + ref_pdb[:-4] + "_unsolvated.pdb"
         os.system(command)
@@ -674,6 +675,34 @@ def run_min_chignolin_westpa_dir(traj, top, cuda = "available"):
     # Deleting md.in file
     command = "rm -rf md.in __pycache__  leap.log mdinfo"
     os.system(command)
+
+def get_dihed_traj(traj, index_dihed):
+    dihed = "@" + str(index_dihed[0]) + " " +  "@" + str(index_dihed[1]) + " " +  "@" + str(index_dihed[2]) +  " " + "@" + str(index_dihed[3])
+    dihed_traj = pt.dihedral(traj, dihed)
+    return(dihed_traj)
+
+def create_chi14_chi18_solvent_bpti(traj, top, index_1, index_2, chi14_chi38_txt, start=0, stop=100000, stride=1):
+    trajec = pt.iterload(traj, top, frame_slice = (start, stop, stride))
+    chi14 = get_dihed_traj(traj = trajec, index_dihed = index_1)
+    print(chi14.shape)
+    chi38 = get_dihed_traj(traj = trajec, index_dihed = index_2)
+    print(chi38.shape)
+    chi14_chi38 = np.array([list(x) for x in zip(chi14, chi38)])
+    print(chi14_chi38.shape)
+    np.savetxt(chi14_chi38_txt, chi14_chi38)
+
+def create_rmsd_rg_bpti_top(traj, top, rmsd_rg_txt, start = 0, stop = 100000, stride = 1):
+    trajec = md.load(traj, top = top)
+    trajec = trajec.remove_solvent()
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    rmsd = md.rmsd(trajec, trajec, 0)
+    print(rmsd.shape)
+    rg = md.compute_rg(trajec)
+    print(rg.shape)
+    rmsd_rg = np.array([list(x) for x in zip(list(rmsd), list(rg))])
+    print(rmsd_rg.shape)
+    np.savetxt(rmsd_rg_txt, rmsd_rg)
 
 ################ BPTI Functions ################
 
@@ -1176,6 +1205,7 @@ def create_heavy_atom_xyz_solvent(traj, top, heavy_atoms_array, start=0, stop=10
 
 def create_heavy_atom_xyz_no_solvent(traj, top, heavy_atoms_array, start=0, stop=100000, stride=1):
     trajec = md.load(traj, top=top)
+    trajec = md.Trajectory.superpose(trajec, reference = trajec[0])
     trajec = trajec[start:stop:stride]
     print(trajec)
     topology = trajec.topology

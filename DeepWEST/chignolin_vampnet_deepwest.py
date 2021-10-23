@@ -20,7 +20,7 @@ top = os.path.join(data_dir, "chignolin.prmtop")
 heavy_atoms_file = os.path.join("heavy_atoms_md_chignolin.txt")
 rmsd_rg_file = os.path.join("rmsd_rg_md_chignolin.txt")
 # Define Parameters and Hyperparameters
-attempts = 4 #10
+attempts = 5 #10
 start = 0 #0
 stop = 500000 #500000
 stride = 1 #1
