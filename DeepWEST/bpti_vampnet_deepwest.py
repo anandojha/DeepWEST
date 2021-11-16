@@ -15,22 +15,23 @@ if module_path not in sys.path:
 import DeepWEST 
 # Load Data ( .prmtop and .nc should be present)
 data_dir = os.getcwd()
-traj_file = os.path.join(data_dir, "system_final.nc")
-traj_file_strided = os.path.join(data_dir, "system_final_strided.nc")
-top = os.path.join(data_dir, "system_final.prmtop")
+traj_file = os.path.join(data_dir, "bpti_500ns_500000steps_solute.nc")
+ref_pdb = os.path.join(data_dir, "bpti_solvent.pdb")
+ref_pdb_solute = os.path.join(data_dir, "bpti.pdb")
+top = os.path.join(data_dir, "bpti.prmtop")             
 heavy_atoms_file = os.path.join("heavy_atoms_md_bpti.txt")
 index_1 = [201, 203, 205, 208 ]
 index_2 = [585, 587, 589, 592]
 chi14_chi38_file = os.path.join("chi14_chi38_md_bpti.txt")
 rmsd_rg_file = os.path.join("rmsd_rg_md_bpti.txt")
 # Define Hyperparameters and parameters
-attempts = 1 #10
+attempts = 5 #10
 start = 0 #0
-stop = 100000 #250000
+stop = 500000 #500000
 stride = 1 #1
 no_frames = 10 # Number of frames to be selected from each bin in the output state 
-output_size = 3 # How many output states the network has (max = 6)
-tau = 60 # Tau, how much is the timeshift of the two datasets
+output_size = 4 # How many output states the network has (max = 6)
+tau = 44 # Tau, how much is the timeshift of the two datasets
 batch_size = 1000 # Batch size for Stochastic Gradient descent
 train_ratio = 0.9 # Which trajectory points percentage is used as training
 network_depth = 8 # How many hidden layers the network has
@@ -39,13 +40,13 @@ learning_rate = 1e-4 # Learning rate used for the ADAM optimizer
 nb_epoch = 60 # Iteration over the training set in the fitting process
 nb_epoch = 100 # Iteration over the training set in the fitting process
 epsilon = 1e-5  # epsilon
-# Saving every nth stride since the netcdf file is too large
-traj_loaded = md.load_netcdf(traj_file, top = top, stride = 10)
-traj_loaded.save_netcdf(traj_file_strided, force_overwrite = True)
 # Define data points
-DeepWEST.create_heavy_atom_xyz_solvent(traj = traj_file_strided, top = top, heavy_atoms_array = heavy_atoms_file, start = start, stop = stop, stride = stride)
-DeepWEST.create_chi14_chi18_solvent_bpti(traj = traj_file_strided, top = top, index_1 = index_1, index_2 = index_2, chi14_chi38_txt = chi14_chi38_file, start = start, stop = stop, stride = stride)
-DeepWEST.create_rmsd_rg_bpti_top(traj = traj_file_strided, top = top, rmsd_rg_txt = rmsd_rg_file, start = start, stop = stop, stride = stride)
+ref_pdb = md.load_pdb(ref_pdb)
+ref_pdb = ref_pdb.remove_solvent()
+ref_pdb.save_pdb(ref_pdb_solute, force_overwrite = True)
+DeepWEST.create_heavy_atom_xyz_solvent(traj = traj_file, top = ref_pdb_solute, heavy_atoms_array = heavy_atoms_file, start = start, stop = stop, stride = stride)
+DeepWEST.create_chi14_chi18_solvent_bpti(traj = traj_file, top = ref_pdb_solute, index_1 = index_1, index_2 = index_2, chi14_chi38_txt = chi14_chi38_file, start = start, stop = stop, stride = stride)
+DeepWEST.create_rmsd_rg_bpti_top(traj = traj_file, top = ref_pdb_solute, rmsd_rg_txt = rmsd_rg_file, start = start, stop = stop, stride = stride)
 traj_whole = np.loadtxt(heavy_atoms_file)
 print(traj_whole.shape)
 dihedral = np.loadtxt(chi14_chi38_file)
@@ -179,7 +180,7 @@ plt.plot(tm1, label = 'training VAMP')
 plt.plot(tm2, label = 'training VAMP2')
 plt.plot(-tm3, label = 'training loss')
 plt.legend()
-plt.savefig("rates_alanine_dipeptide.jpg", bbox_inches="tight", dpi = 500)
+plt.savefig("rates_bpti.jpg", bbox_inches="tight", dpi = 500)
 plt.show(block=False)
 plt.pause(1)
 plt.close()
@@ -202,7 +203,7 @@ def print_states_pie_chart():
     ax1.pie(np.array(coors), autopct='%1.2f%%', startangle=90)
     ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
     print('States population: '+ str(np.array(coors)/len(maxi)*100)+'%')
-    plt.savefig("population_alanine_dipeptide.jpg", bbox_inches="tight", dpi = 500)
+    plt.savefig("population_bpti.jpg", bbox_inches="tight", dpi = 500)
     plt.show(block=False)
     plt.pause(1)
     plt.close()
@@ -213,7 +214,7 @@ coor_train = np.zeros_like(pred_ord)
 for i in range(output_size):
     coor_train = np.where(pred_ord[:,i]== maxi_train)[0]
     plt.scatter(dihedral_init[coor_train,0], dihedral_init[coor_train,1], s=5)
-    plt.savefig("dist_alanine_dipeptide.jpg", dpi = 500)
+    plt.savefig("dist_bpti.jpg", dpi = 500)
     plt.axes = [[-np.pi, np.pi],[-np.pi, np.pi]]
 # For each state, visualize the probabilities the different trajectory points have to belong to it
 fig = plt.figure(figsize=(25,25))
@@ -252,14 +253,14 @@ gs1.tight_layout(fig, rect=[0, 0.03, 0.95, 0.94])
 cax = fig.add_axes([0.95, 0.05, 0.02, 0.8])
 cbar = fig.colorbar(im, cax=cax, ticks=[0, 1])
 cbar.ax.yaxis.set_tick_params(labelsize=40)
-fig.savefig("state_viz_alanine_dipeptide.jpg", bbox_inches="tight", dpi = 250)
+fig.savefig("state_viz_bpti.jpg", bbox_inches="tight", dpi = 250)
 plt.close()
 # Markov Model Estimation
 # Estimate the implied timescales
 max_tau = 200
 lag = np.arange(1, max_tau, 1)
 its = vamp.get_its(pred_ord, lag)
-vamp.plot_its(its, lag, fig = "its_alanine_dipeptide.jpg")
+vamp.plot_its(its, lag, fig = "its_bpti.jpg")
 # Chapman-Kolmogorov test for the estimated koopman operator
 steps = 8
 tau_msm = 35
@@ -272,13 +273,13 @@ sorted_indices = DeepWEST.get_pdbs_from_clusters(indices = indices_list, rmsd_rg
 print("Saved indices")
 index_for_we = list(itertools.chain.from_iterable(sorted_indices))
 print(len(index_for_we))
-np.savetxt("indices_vamp_alanine_dipeptide.txt", index_for_we)
+np.savetxt("indices_vamp_bpti.txt", index_for_we)
 current_cwd = os.getcwd()
 westpa_cwd = current_cwd + "/" + "westpa_dir" # westpa directory pwd 
-indices_vamp = np.loadtxt("indices_vamp_alanine_dipeptide.txt")
+indices_vamp = np.loadtxt("indices_vamp_bpti.txt")
 indices_vamp = [int(i) for i in indices_vamp]
-DeepWEST.create_westpa_dir(traj_file = traj_file, top = top, indices = indices_vamp, shuffled_indices=shuff_indexes)
+DeepWEST.create_westpa_dir(traj_file = traj_file, top = ref_pdb_solute, indices = indices_vamp, shuffled_indices=shuff_indexes)
 os.chdir(westpa_cwd)
-DeepWEST.run_min_alanine_dipeptide_westpa_dir(traj = traj_file, top = top, cuda = "unavailable")
+DeepWEST.run_min_bpti_westpa_dir(traj = traj_file, top = top, cuda = "unavailable")
 DeepWEST.create_westpa_filetree()
 os.chdir(current_cwd)

@@ -428,6 +428,15 @@ def fix_cap_chignolin(pdb_file):
     command = "mv intermediate.pdb " + pdb_file
     os.system(command)
 
+def fix_cap_replace_arg(pdb_file):
+    fin = open(pdb_file, "rt")
+    data = fin.read()
+    data = data.replace("H   ARG A   1", "H1  ARG A   1")
+    fin.close()
+    fin = open(pdb_file, "wt")
+    fin.write(data)
+    fin.close()
+
 def create_bpti_traj_for_molearn(
     traj = "system_final.nc", 
     top = "system_final.prmtop", 
@@ -703,6 +712,78 @@ def create_rmsd_rg_bpti_top(traj, top, rmsd_rg_txt, start = 0, stop = 100000, st
     rmsd_rg = np.array([list(x) for x in zip(list(rmsd), list(rg))])
     print(rmsd_rg.shape)
     np.savetxt(rmsd_rg_txt, rmsd_rg)
+
+def run_min_bpti_westpa_dir(traj, top, cuda = "available"):
+    files = os.listdir(".")
+    file_to_find = "*.pdb"
+    pdb_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            pdb_list.append(x)
+    # Fixing capping issues in mdtraj saved pdb files
+    for i in pdb_list:
+        pdb_file = i
+        fix_cap_replace_arg(pdb_file)
+    # Saving inpcrd file from mdtraj saved pdb files
+    for i in pdb_list:
+        pdb_file = i
+        line_1 = "source leaprc.protein.ff14SB"
+        line_2 = "loadOff solvents.lib"
+        line_3 = "loadOff tip4pbox.off"
+        line_4 = "loadOff tip4pewbox.off"
+        line_5 = "source leaprc.water.tip4pew"
+        line_6 = "HOH = TP4"
+        line_7 = "pdb = loadpdb " + pdb_file
+        line_8 = "addions2 pdb Cl- 6"
+        line_9 = "solvatebox pdb TIP4PEWBOX 12.0"
+        line_10 = "set default PBRadii mbondi2"
+        line_11 = "saveamberparm pdb " + pdb_file[:-4] + ".prmtop " + pdb_file[:-4] + ".inpcrd"
+        line_12 = "quit"
+        with open("input.leap", "w") as f:
+            f.write("    " + "\n")
+            f.write(line_1 + "\n")
+            f.write(line_2 + "\n")
+            f.write(line_3 + "\n")
+            f.write(line_4 + "\n")
+            f.write(line_5 + "\n")
+            f.write(line_6 + "\n")
+            f.write(line_7 + "\n")
+            f.write(line_8 + "\n")
+            f.write(line_9 + "\n")
+            f.write(line_10 + "\n")
+            f.write(line_11 + "\n")
+            f.write(line_12 + "\n")
+        command = "tleap -f input.leap"
+        os.system(command)
+        command = "rm -rf input.leap"
+        os.system(command)
+    files = os.listdir(".")
+    file_to_find = "*.inpcrd"
+    inpcrd_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            inpcrd_list.append(x)
+    #for i in inpcrd_list:
+        #add_vectors(traj=traj, top=top, inpcrd_file=i)
+    # Creating Amber MD input file
+    with open("md.in", "w") as f:
+        f.write("Run minimization followed by saving rst file" + "\n")
+        f.write("&cntrl" + "\n")
+        f.write("  imin = 1, maxcyc = 10000, ntpr = 50, iwrap = 1, ntxo = 1" + "\n")
+        f.write("&end" + "\n")
+    # Running short MD simulations to save .rst file
+    for i in pdb_list:
+        pdb_file = i
+        if cuda == "available":
+            command = "pmemd.cuda -O -i md.in -o " + pdb_file[:-4] + ".out" + " -p " + pdb_file[:-4] + ".prmtop" + " -c " + pdb_file[:-4] + ".inpcrd" + " -r " + pdb_file[:-4] + ".rst"
+            print(command)
+        if cuda == "unavailable":
+            command = "sander -O -i md.in -o " + pdb_file[:-4] + ".out" + " -p " + pdb_file[:-4] + ".prmtop" + " -c " + pdb_file[:-4] + ".inpcrd" + " -r " + pdb_file[:-4] + ".rst"
+            print(command)
+        os.system(command)
+    # Deleting md.in file
+    command = "rm -rf md.in __pycache__  leap.log mdinfo"
+    os.system(command)
 
 ################ BPTI Functions ################
 
@@ -1055,7 +1136,7 @@ def run_min_alanine_dipeptide_westpa_dir(traj, top, cuda = "available"):
     with open("md.in", "w") as f:
         f.write("Run minimization followed by saving rst file" + "\n")
         f.write("&cntrl" + "\n")
-        f.write("  imin = 1, maxcyc = 200, ntpr = 50, iwrap = 1, ntxo = 1" + "\n")
+        f.write("  imin = 1, maxcyc = 10000, ntpr = 50, iwrap = 1, ntxo = 1" + "\n")
         f.write("&end" + "\n")
     # Running short MD simulations to save .rst file
     for i in pdb_list:
