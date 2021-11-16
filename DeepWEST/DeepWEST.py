@@ -632,7 +632,7 @@ def gen_amber_files_bpti(
         os.system(command)    
     os.chdir(current_pwd)
 
-def run_min_chignolin_westpa_dir(traj, top, cuda = "available"):
+def run_min_chignolin_westpa_dir(traj, top, maxcyc = 200, cuda = "available"):
     files = os.listdir(".")
     file_to_find = "*.pdb"
     pdb_list = []
@@ -669,7 +669,7 @@ def run_min_chignolin_westpa_dir(traj, top, cuda = "available"):
     with open("md.in", "w") as f:
         f.write("Run minimization followed by saving rst file" + "\n")
         f.write("&cntrl" + "\n")
-        f.write("  imin = 1, maxcyc = 200, ntpr = 50, ntxo = 1, igb = 5, cut = 1000.00" + "\n")
+        f.write("  imin = 1, maxcyc = " + str(maxcyc) + ", ntpr = 50, ntxo = 1, igb = 5, cut = 1000.00" + "\n")
         f.write("&end" + "\n")
     # Running short MD simulations to save .rst file
     for i in pdb_list:
@@ -713,7 +713,7 @@ def create_rmsd_rg_bpti_top(traj, top, rmsd_rg_txt, start = 0, stop = 100000, st
     print(rmsd_rg.shape)
     np.savetxt(rmsd_rg_txt, rmsd_rg)
 
-def run_min_bpti_westpa_dir(traj, top, cuda = "available"):
+def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
     files = os.listdir(".")
     file_to_find = "*.pdb"
     pdb_list = []
@@ -769,7 +769,7 @@ def run_min_bpti_westpa_dir(traj, top, cuda = "available"):
     with open("md.in", "w") as f:
         f.write("Run minimization followed by saving rst file" + "\n")
         f.write("&cntrl" + "\n")
-        f.write("  imin = 1, maxcyc = 10000, ntpr = 50, iwrap = 1, ntxo = 1" + "\n")
+        f.write("  imin = 1, maxcyc = " + str(maxcyc) + ", ntpr = 50, iwrap = 1, ntxo = 1" + "\n")
         f.write("&end" + "\n")
     # Running short MD simulations to save .rst file
     for i in pdb_list:
@@ -1089,7 +1089,7 @@ def create_westpa_dir(traj_file, top, indices, shuffled_indices):
         pdb_path = os.path.join(os.getcwd(), "westpa_dir/" + pdb_name)
         traj_frame.save_pdb(pdb_path, force_overwrite=True)
 
-def run_min_alanine_dipeptide_westpa_dir(traj, top, cuda = "available"):
+def run_min_alanine_dipeptide_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
     files = os.listdir(".")
     file_to_find = "*.pdb"
     pdb_list = []
@@ -1136,7 +1136,7 @@ def run_min_alanine_dipeptide_westpa_dir(traj, top, cuda = "available"):
     with open("md.in", "w") as f:
         f.write("Run minimization followed by saving rst file" + "\n")
         f.write("&cntrl" + "\n")
-        f.write("  imin = 1, maxcyc = 10000, ntpr = 50, iwrap = 1, ntxo = 1" + "\n")
+        f.write("  imin = 1, maxcyc = " + str(maxcyc) + ", ntpr = 50, iwrap = 1, ntxo = 1" + "\n")
         f.write("&end" + "\n")
     # Running short MD simulations to save .rst file
     for i in pdb_list:

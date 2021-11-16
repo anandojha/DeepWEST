@@ -203,6 +203,7 @@ def print_states_pie_chart():
     ax1.pie(np.array(coors), autopct='%1.2f%%', startangle=90)
     ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
     print('States population: '+ str(np.array(coors)/len(maxi)*100)+'%')
+    np.savetxt('population.txt', coors, delimiter=',')
     plt.savefig("population_bpti.jpg", bbox_inches="tight", dpi = 500)
     plt.show(block=False)
     plt.pause(1)
