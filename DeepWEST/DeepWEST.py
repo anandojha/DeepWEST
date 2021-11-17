@@ -199,7 +199,7 @@ def select_pdbs_by_binning(rmsds, indices, bins, num_pdbs):
 
 def get_pdbs_from_clusters(indices, rmsd_rg, num_pdbs, num_bins = 10):
     pdbs = []
-    for idx_list in indices:
+    for i, idx_list in enumerate(indices):
         rmsds = rmsd_rg[:, 0]
         rmsds = [rmsds[x] for x in idx_list]
         print("Length of rmsd list: ", len(rmsds))
@@ -1237,6 +1237,139 @@ def create_westpa_filetree():
             inpcrd_list.append(x)
     prob = round(1 / len(inpcrd_list), 10)
     prob_list = [prob] * len(inpcrd_list)
+    index = []
+    for i in range(len(inpcrd_list)):
+        index.append(i)
+    data = [index, prob_list, inpcrd_list]
+    df = pd.DataFrame(data)
+    df = df.transpose()
+    df.columns = ["index", "prob", "file"]
+    df.to_csv("BASIS_STATES_INPCRD", sep="\t", index=False, header=False)
+    files = os.listdir(".")
+    file_to_find = "*.prmtop"
+    prmtop_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            prmtop_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "CONFIG"
+    os.system("rm -rf CONFIG")
+    os.system("mkdir CONFIG")
+    prmtop_file = prmtop_list[0]
+    shutil.copy(current_dir + "/" + prmtop_file, target_dir + "/" + "system_final.prmtop")
+    command = "rm -rf *.pdb* *.inpcrd* *.prmtop* *.rst* *.out* "
+    os.system(command)
+
+def create_biased_westpa_filetree(state_indices, num_states):
+    files = os.listdir(".")
+    file_to_find = "*.rst"
+    rst_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            rst_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_rst"
+    os.system("rm -rf bstates_rst")
+    os.system("mkdir bstates_rst")
+    for i in rst_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+    files = os.listdir(".")
+    file_to_find = "*.pdb"
+    pdb_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            pdb_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_pdb"
+    os.system("rm -rf bstates_pdb")
+    os.system("mkdir bstates_pdb")
+    for i in pdb_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+    files = os.listdir(".")
+    file_to_find = "*.inpcrd"
+    inpcrd_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            inpcrd_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_inpcrd"
+    os.system("rm -rf bstates_inpcrd")
+    os.system("mkdir bstates_inpcrd")
+    for i in inpcrd_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+    files = os.listdir(".")
+    file_to_find = "*.prmtop"
+    prmtop_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            prmtop_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_prmtop"
+    os.system("rm -rf bstates_prmtop")
+    os.system("mkdir bstates_prmtop")
+    for i in prmtop_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+    files = os.listdir(".")
+    file_to_find = "*.out"
+    out_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            out_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_out"
+    os.system("rm -rf bstates_out")
+    os.system("mkdir bstates_out")
+    for i in out_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+    os.chdir("..")
+    prob_file = "population.txt"
+    probab = np.loadtxt(prob_file)
+    total = np.sum(probab)
+    probab = probab/total
+    print(probab)
+    os.chdir("westpa_dir")
+    files = os.listdir(".")
+    prob_list = []
+    print("Total number of rst files: ", len(rst_list))
+    final_rst_state_indices = [[] for i in range(num_states)]
+    for rst in rst_list:
+        idx = rst.split('.')[0]
+        for i in range(num_states):
+            if int(idx) in state_indices[i]:
+                final_rst_state_indices[i].append(int(idx))
+                break
+    for rst in rst_list:
+        idx = rst.split('.')[0]
+        for i in range(num_states):
+            if int(idx) in state_indices[i]:
+                prob = round((probab[i]) / (len(final_rst_state_indices[i])), 10)
+                prob_list.append(prob)
+    print(prob_list)
+    print("Total Probability with rst files:", sum(prob_list))
+    index = []
+    for i in range(len(rst_list)):
+        index.append(i)
+    data = [index, prob_list, rst_list]
+    df = pd.DataFrame(data)
+    df = df.transpose()
+    df.columns = ["index", "prob", "file"]
+    df.to_csv("BASIS_STATES_RST", sep="\t", index=False, header=False)
+    files = os.listdir(".")
+    file_to_find = "*.inpcrd"
+    inpcrd_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            inpcrd_list.append(x)
+    prob_list = []
+    print("Total number of inpcrd files: ", len(inpcrd_list))
+    for inpcrd in inpcrd_list:
+        idx = inpcrd.split('.')[0]
+        for i in range(num_states):
+            if int(idx) in state_indices[i]:
+                prob = round((probab[i]) / (len(state_indices[i])), 10)
+                prob_list.append(prob)
+    print(prob_list)
+    print("Total Probability with inpcrd files:", sum(prob_list))
     index = []
     for i in range(len(inpcrd_list)):
         index.append(i)
