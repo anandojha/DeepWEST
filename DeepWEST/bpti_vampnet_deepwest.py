@@ -281,7 +281,7 @@ indices_vamp = np.loadtxt("indices_vamp_bpti.txt")
 indices_vamp = [int(i) for i in indices_vamp]
 DeepWEST.create_westpa_dir(traj_file = traj_file, top = ref_pdb_solute, indices = indices_vamp, shuffled_indices=shuff_indexes)
 os.chdir(westpa_cwd)
-DeepWEST.run_min_bpti_westpa_dir(traj = traj_file, top = top, maxcyc = 10000, cuda = "unavailable")
+DeepWEST.run_min_bpti_westpa_dir(traj = traj_file, top = top, maxcyc = 10000, cuda = "available")
 print("Creating WESTPA Filetree...")
 #DeepWEST.create_westpa_filetree()
 DeepWEST.create_biased_westpa_filetree(state_indices = sorted_indices, num_states = output_size)
