@@ -1,4 +1,4 @@
-import matplotlib.gridspec as gridspec
+﻿import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import mdtraj as md
@@ -15,10 +15,8 @@ if module_path not in sys.path:
 import DeepWEST 
 # Load Data ( .prmtop and .nc should be present)
 data_dir = os.getcwd()
-traj_file = os.path.join(data_dir, "bpti_500ns_500000steps_solute.nc")
-ref_pdb = os.path.join(data_dir, "bpti_solvent.pdb")
-ref_pdb_solute = os.path.join(data_dir, "bpti.pdb")
-top = os.path.join(data_dir, "bpti.prmtop")             
+traj_file = os.path.join(data_dir, "system_final.nc")
+top = os.path.join(data_dir, "system_final.prmtop")             
 heavy_atoms_file = os.path.join("heavy_atoms_md_bpti.txt")
 index_1 = [201, 203, 205, 208 ]
 index_2 = [585, 587, 589, 592]
@@ -41,12 +39,9 @@ nb_epoch = 60 # Iteration over the training set in the fitting process
 nb_epoch = 100 # Iteration over the training set in the fitting process
 epsilon = 1e-5  # epsilon
 # Define data points
-ref_pdb = md.load_pdb(ref_pdb)
-ref_pdb = ref_pdb.remove_solvent()
-ref_pdb.save_pdb(ref_pdb_solute, force_overwrite = True)
-DeepWEST.create_heavy_atom_xyz_solvent(traj = traj_file, top = ref_pdb_solute, heavy_atoms_array = heavy_atoms_file, start = start, stop = stop, stride = stride)
-DeepWEST.create_chi14_chi18_solvent_bpti(traj = traj_file, top = ref_pdb_solute, index_1 = index_1, index_2 = index_2, chi14_chi38_txt = chi14_chi38_file, start = start, stop = stop, stride = stride)
-DeepWEST.create_rmsd_rg_bpti_top(traj = traj_file, top = ref_pdb_solute, rmsd_rg_txt = rmsd_rg_file, start = start, stop = stop, stride = stride)
+DeepWEST.create_heavy_atom_xyz_solvent(traj = traj_file, top = top, heavy_atoms_array = heavy_atoms_file, start = start, stop = stop, stride = stride)
+DeepWEST.create_chi14_chi18_solvent_bpti(traj = traj_file, top = top, index_1 = index_1, index_2 = index_2, chi14_chi38_txt = chi14_chi38_file, start = start, stop = stop, stride = stride)
+DeepWEST.create_rmsd_rg_bpti_top(traj = traj_file, top = top, rmsd_rg_txt = rmsd_rg_file, start = start, stop = stop, stride = stride)
 traj_whole = np.loadtxt(heavy_atoms_file)
 print(traj_whole.shape)
 dihedral = np.loadtxt(chi14_chi38_file)
@@ -203,7 +198,6 @@ def print_states_pie_chart():
     ax1.pie(np.array(coors), autopct='%1.2f%%', startangle=90)
     ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
     print('States population: '+ str(np.array(coors)/len(maxi)*100)+'%')
-    np.savetxt('population.txt', coors, delimiter=',')
     plt.savefig("population_bpti.jpg", bbox_inches="tight", dpi = 500)
     plt.show(block=False)
     plt.pause(1)
@@ -258,10 +252,12 @@ fig.savefig("state_viz_bpti.jpg", bbox_inches="tight", dpi = 250)
 plt.close()
 # Markov Model Estimation
 # Estimate the implied timescales
+"""
 max_tau = 200
 lag = np.arange(1, max_tau, 1)
 its = vamp.get_its(pred_ord, lag)
 vamp.plot_its(its, lag, fig = "its_bpti.jpg")
+"""
 # Chapman-Kolmogorov test for the estimated koopman operator
 steps = 8
 tau_msm = 35
@@ -279,9 +275,9 @@ current_cwd = os.getcwd()
 westpa_cwd = current_cwd + "/" + "westpa_dir" # westpa directory pwd 
 indices_vamp = np.loadtxt("indices_vamp_bpti.txt")
 indices_vamp = [int(i) for i in indices_vamp]
-DeepWEST.create_westpa_dir(traj_file = traj_file, top = ref_pdb_solute, indices = indices_vamp, shuffled_indices=shuff_indexes)
+DeepWEST.create_westpa_dir(traj_file = traj_file, top = top, indices = indices_vamp, shuffled_indices=shuff_indexes)
 os.chdir(westpa_cwd)
-DeepWEST.run_min_bpti_westpa_dir(traj = traj_file, top = top, maxcyc = 10000, cuda = "available")
+DeepWEST.run_min_bpti_westpa_dir(traj = traj_file, top = top, cuda = "available")
 print("Creating WESTPA Filetree...")
 #DeepWEST.create_westpa_filetree()
 DeepWEST.create_biased_westpa_filetree(state_indices = sorted_indices, num_states = output_size)

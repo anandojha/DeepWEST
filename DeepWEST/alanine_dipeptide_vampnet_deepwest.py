@@ -15,8 +15,8 @@ if module_path not in sys.path:
 import DeepWEST 
 # Load Data ( .prmtop and .nc should be present)
 data_dir = os.getcwd()
-traj_file = os.path.join(data_dir, "alanine_dipeptide_250ns_250000steps.nc")
-top = os.path.join(data_dir, "alanine_dipeptide.prmtop")
+traj_file = os.path.join(data_dir, "system_final.nc")
+top = os.path.join(data_dir, "system_final.prmtop")
 heavy_atoms_file = os.path.join("heavy_atoms_md_alanine_dipeptide.txt")
 phi_psi_file = os.path.join("phi_psi_md_alanine_dipeptide.txt")
 rmsd_rg_file = os.path.join("rmsd_rg_md_alanine_dipeptide.txt")
@@ -250,11 +250,13 @@ cbar.ax.yaxis.set_tick_params(labelsize=40)
 fig.savefig("state_viz_alanine_dipeptide.jpg", bbox_inches="tight", dpi = 250)
 plt.close()
 # Markov Model Estimation
+"""
 # Estimate the implied timescales
 max_tau = 200
 lag = np.arange(1, max_tau, 1)
 its = vamp.get_its(pred_ord, lag)
 vamp.plot_its(its, lag, fig = "its_alanine_dipeptide.jpg")
+"""
 # Chapman-Kolmogorov test for the estimated koopman operator
 steps = 8
 tau_msm = 35
@@ -274,7 +276,7 @@ indices_vamp = np.loadtxt("indices_vamp_alanine_dipeptide.txt")
 indices_vamp = [int(i) for i in indices_vamp]
 DeepWEST.create_westpa_dir(traj_file = traj_file, top = top, indices = indices_vamp, shuffled_indices=shuff_indexes)
 os.chdir(westpa_cwd)
-DeepWEST.run_min_alanine_dipeptide_westpa_dir(traj = traj_file, top = top, maxcyc = 10000, cuda = "unavailable")
+DeepWEST.run_min_alanine_dipeptide_westpa_dir(traj = traj_file, top = top, maxcyc = 10000, cuda = "available")
 print("Creating WESTPA Filetree...")
 #DeepWEST.create_westpa_filetree()
 DeepWEST.create_biased_westpa_filetree(state_indices = sorted_indices, num_states = output_size)

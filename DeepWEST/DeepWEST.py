@@ -1,164 +1,16 @@
-from sklearn.mixture import GaussianMixture
-import matplotlib.gridspec as gridspec
-from biopandas.pdb import PandasPdb
-from sklearn.cluster import KMeans
-from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
-from simtk.openmm import app
-from sklearn import metrics
-from scipy import stats
 import tensorflow as tf
-from sys import stdout
-import seaborn as sns
 import pandas as pd
 import mdtraj as md
 import pytraj as pt
 import numpy as np
-import itertools
 import fnmatch
 import shutil
-import simtk
 import scipy
 import os
 import re
 
 ################ Common Functions ################
-
-def get_non_H_unique_atoms(traj):
-    ppdb = PandasPdb()
-    ppdb.read_pdb(traj)
-    no_host_atoms = ppdb.df["ATOM"].shape[0]
-    df = ppdb.df["ATOM"]
-    unique_list = list(df.atom_name.unique())
-    for word in unique_list[:]:
-        if word.startswith("H"):
-            unique_list.remove(word)
-    return(unique_list)
-
-def extract_single_pdbs(dirname):
-    pwd = os.getcwd()
-    dir = os.path.join(pwd, dirname)
-    files = os.listdir(dirname)
-    pdbs = []
-    for file in files:
-        if file[-4:] == ".pdb":
-            pdbs.append(file)
-    num_multipdbs = len(pdbs)
-    command = "rm -rf extracted_pdbs"
-    os.system(command)
-    os.mkdir("extracted_pdbs")
-    num_pdb = 0   # keeping track of total number of single pdbs
-    f_pdb = open(os.path.join(pwd, "extracted_pdbs/0.pdb"), "w")
-    for pdb_num in range(num_multipdbs):
-        pdb = str(pdb_num) + ".pdb"
-        print("Extracting " + pdb)
-        with open(os.path.join(pwd, "interpolated_trajs", pdb), "r") as f:
-            lines = f.readlines()
-            num_pdbs = lines.count("END\n")
-            print(str(num_pdbs) + " in " + pdb)
-            for line in lines:
-                if line[0:3] == "END":
-                    f_pdb.write("END")
-                    f_pdb.close()
-                    num_pdb = num_pdb + 1
-                    pdb_name = str(num_pdb) + ".pdb"
-                    f_pdb = open(os.path.join(pwd, "extracted_pdbs", pdb_name), "w")
-                else:
-                    f_pdb.write(line)
-    last_pdb = str(num_pdb) + ".pdb"
-    last_pdb_path = os.path.join(pwd, "extracted_pdbs", last_pdb)
-    command = f"rm -rf {last_pdb_path}"
-    os.system(command)
-
-def add_H_pdbs(dirname = "extracted_pdbs"):
-    current_pwd = os.getcwd()
-    target_cwd = current_pwd + "/" + dirname
-    os.chdir(target_cwd)
-    files = os.listdir(".")
-    file_to_find = "*.pdb*"
-    pdb_files = []
-    for i in files:
-        if fnmatch.fnmatch(i, file_to_find):
-            pdb_files.append(i)
-    for i in pdb_files:
-        command = "pdb4amber -i " + i + " -o " + i[:-4] + "_.pdb" + " " + "--add-missing-atom"
-        os.system(command)
-        command = "rm -rf *renum* *nonprot* *sslink* " 
-        os.system(command)
-        command = "mv " + i[:-4] + "_.pdb" + " " + i
-        os.system(command)
-    os.chdir(current_pwd)
-
-def explicit_md_input(
-    imin = 0, 
-    irest = 0, 
-    ntx = 1, 
-    nstlim = 100000, 
-    dt = 0.002, 
-    ntc = 2, 
-    ntf = 2, 
-    tol = 0.000001, 
-    iwrap = 1, 
-    ntb = 1, 
-    cut = 8.0, 
-    ntt = 3, 
-    temp0 = 300.0, 
-    gamma_ln = 1.0, 
-    ntpr = 500, 
-    ntwx = 500, 
-    ntwr = 500,
-    ntxo = 2, 
-    ioutfm = 1, 
-    ig = -1, 
-    ntwprt = 0, 
-    md_input_file = "md.in"
-):
-
-    line_1 = "&cntrl"
-    line_2 = "  " + "imin" + "=" + str(imin) + "," + "irest" + "=" + str(irest) + "," + "ntx" + "=" + str(ntx) + ","
-    line_3 = "  " + "nstlim" + "=" + str(nstlim) + ", " + "dt" + "=" + str(dt) + "," + "ntc" + "=" + str(ntc) + ","
-    line_4 = "  " + "ntf" + "=" + str(ntf) + "," + "tol" + "=" + str(tol) + "," + "iwrap" + "=" + str(iwrap) + ","
-    line_5 = "  " + "ntb" + "=" + str(ntb) + "," + "cut" + "=" + str(cut) + "," + "ntt" + "=" + str(ntt) + ","
-    line_6 = "  " + "temp0" + "=" + str(temp0) + "," + "gamma_ln" + "=" + str(gamma_ln) + "," + "ntpr" + "=" + str(ntpr) + ","
-    line_7 = "  " + "ntwx" + "=" + str(ntwx) + "," + "ntwr" + "=" + str(ntwr) + "," + "ntxo" + "=" + str(ntxo) + ","
-    line_8 = "  " + "ioutfm" + "=" + str(ioutfm) + "," + "ig" + "=" + str(ig) + "," + "ntwprt" + "=" + str(ntwprt) + ","
-    line_9 = "&end"
-    with open(md_input_file, "w") as f:
-        f.write("    " + "\n")
-        f.write(line_1 + "\n")
-        f.write(line_2 + "\n")
-        f.write(line_3 + "\n")
-        f.write(line_4 + "\n")
-        f.write(line_5 + "\n")
-        f.write(line_6 + "\n")
-        f.write(line_7 + "\n")
-        f.write(line_8 + "\n")
-        f.write(line_9 + "\n")
-
-def write_explicit_solvent_leap(
-    pad = 12, 
-    leap_file = "input.leap", 
-    pdb_file = "system.pdb"):
-    line_1 = "source leaprc.protein.ff14SB"
-    line_2 = "source leaprc.water.tip3p"
-    line_3 = "set default FlexibleWater on"
-    line_4 = "set default PBRadii mbondi2"
-    line_5 = "pdb = loadpdb " + pdb_file
-    line_6 = "solvateBox pdb TIP3PBOX " + str(pad)
-    line_7 = "saveamberparm pdb " + pdb_file[:-4] + ".prmtop " + pdb_file[:-4] + ".inpcrd"
-    line_8 = "savepdb pdb " + pdb_file[:-4] + "_solvated.pdb"
-    line_9 = "quit"
-    with open(leap_file, "w") as f:
-        f.write("    " + "\n")
-        f.write(line_1 + "\n")
-        f.write(line_2 + "\n")
-        f.write(line_3 + "\n")
-        f.write(line_4 + "\n")
-        f.write(line_5 + "\n")
-        f.write(line_6 + "\n")
-        f.write(line_7 + "\n")
-        f.write(line_8 + "\n")
-        f.write(line_9 + "\n")
 
 def create_bins(lower_bound, width, upper_bound):
     bins = []
@@ -209,88 +61,69 @@ def get_pdbs_from_clusters(indices, rmsd_rg, num_pdbs, num_bins = 10):
         s_pdbs = select_pdbs_by_binning(rmsds, idx_list, bins, num_pdbs)
         pdbs.append(s_pdbs)
     return pdbs
-################ Common Functions ################
 
-################ Chignolin Functions ################
-
-def create_chignolin_md_inputs(url = "https://files.rcsb.org/download/1UAO.pdb1.gz", 
-                               ref_pdb = "chignolin.pdb"):
-    command = "curl -O " + url
-    os.system(command)
-    command = "gunzip 1UAO.pdb1.gz"
-    os.system(command)
-    command = "mv 1UAO.pdb1 " + ref_pdb
-    os.system(command)
-    line_1 = "source leaprc.protein.ff14SB"
-    line_2 = "pdb = loadpdb " + ref_pdb
-    line_3 = "saveamberparm pdb " + ref_pdb[:-4] + ".prmtop " + ref_pdb[:-4] + ".inpcrd"
-    line_4 = "savepdb pdb " + ref_pdb[:-4] + "_for_amber.pdb"
-    line_5 = "quit"
-    with open("chig.leap", "w") as f:
-        f.write("    " + "\n")
-        f.write(line_1 + "\n")
-        f.write(line_2 + "\n")
-        f.write(line_3 + "\n")
-        f.write(line_4 + "\n")
-        f.write(line_5 + "\n")
-    command = "tleap -f chig.leap"
-    os.system(command)
-    command = "rm -rf chig.leap leap.log"
-    os.system(command)
-    
-def input_chig_implicit_md(imin = 0, irest = 0, ntx = 1, dt = 0.002, ntc = 2, tol = 0.000001, 
-                         igb = 5, cut = 1000.00, ntt = 3, temp0 = 300.0, gamma_ln = 1.0, 
-                         ntpr = 500, ntwr = 500, ntxo = 2, ioutfm = 1, ig = -1, ntwprt = 0, 
-                         md_input_file = "md.in", nstlim = 2500000000, ntwx = 25000):
-    line_1 = "&cntrl"
-    line_2 = "  " + "imin" + "=" + str(imin) + "," + "irest" + "=" + str(irest) + "," + "ntx" + "=" + str(ntx) + ","
-    line_3 = "  " + "nstlim" + "=" + str(nstlim) + ", " + "dt" + "=" + str(dt) + "," + "ntc" + "=" + str(ntc) + ","
-    line_4 = "  " + "tol" + "=" + str(tol) + "," + "igb" + "=" + str(igb) + "," + "cut" + "=" + str(cut) + ","
-    line_5 = "  " + "ntt" + "=" + str(ntt) + "," + "temp0" + "=" + str(temp0) + "," + "gamma_ln" + "=" + str(gamma_ln) + ","
-    line_6 = "  " + "ntpr" + "=" + str(ntpr) + "," + "ntwx" + "=" + str(ntwx) + "," + "ntwr" + "=" + str(ntwr) + ","
-    line_7 = "  " + "ntxo" + "=" + str(ntxo) + "," + "ioutfm" + "=" + str(ioutfm) + "," + "ig" + "=" + str(ig) + ","
-    line_8 = "  " + "ntwprt" + "=" + str(ntwprt) + ","
-    line_9 = "&end"
-    with open(md_input_file, "w") as f:
-        f.write("    " + "\n")
-        f.write(line_1 + "\n")
-        f.write(line_2 + "\n")
-        f.write(line_3 + "\n")
-        f.write(line_4 + "\n")
-        f.write(line_5 + "\n")
-        f.write(line_6 + "\n")
-        f.write(line_7 + "\n")
-        f.write(line_8 + "\n")
-        f.write(line_9 + "\n")
-        
-def run_chignolin_md_cpu(md_input_file = "md.in", output_file = "chignolin.out",
-                         prmtopfile = "chignolin.prmtop", inpcrd_file = "chignolin.inpcrd", 
-                         rst_file = "chignolin.rst", traj_file = "chignolin.nc"):
-
-    command = "sander -O -i " + md_input_file + " -o " + output_file + " -p " + prmtopfile + " -c " + inpcrd_file + " -r " + rst_file + " -x " +  traj_file
-    print("Running Amber MD simulations")
-    os.system(command)
-    
-def create_chignolin_traj_for_molearn(traj="chignolin.nc", ref_pdb="chignolin_for_amber.pdb", 
-                                      start=0, stop=100000, stride=1, traj_pdb="chig_multi.pdb"):
-    topology = md.load(ref_pdb).topology
-    print(topology)
-    trajec = md.load(traj, top=ref_pdb)
+def create_heavy_atom_xyz_solvent(traj, top, heavy_atoms_array, start=0, stop=100000, stride=1):
+    trajec = md.load(traj, top=top)
+    trajec = trajec.remove_solvent()
     trajec = md.Trajectory.superpose(trajec, reference = trajec[0])
-    print(trajec)
     trajec = trajec[start:stop:stride]
     print(trajec)
-    trajec.save_pdb(traj_pdb, force_overwrite=True)  
+    topology = trajec.topology
+    print(topology)
+    df, bonds = topology.to_dataframe()
+    heavy_indices = list(df[df["element"] != "H"].index)
+    print(heavy_indices)
+    trajec = trajec.atom_slice(atom_indices=heavy_indices)
+    print(trajec)
+    trajec_xyz = trajec.xyz * 10
+    print(trajec_xyz.shape)
+    trajec_xyz = trajec_xyz.reshape(
+        (trajec.xyz.shape[0], trajec.xyz.shape[1] * trajec.xyz.shape[2]))
+    print(trajec_xyz.shape)
+    np.savetxt(heavy_atoms_array, trajec_xyz)
 
-"""
-create_chignolin_md_inputs()
-input_chig_implicit_md()
-run_chignolin_md_cpu()
-create_chignolin_traj_for_molearn()
-"""
-################ Chignolin Functions ################
+def create_heavy_atom_xyz_no_solvent(traj, top, heavy_atoms_array, start=0, stop=100000, stride=1):
+    trajec = md.load(traj, top=top)
+    trajec = md.Trajectory.superpose(trajec, reference = trajec[0])
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    topology = trajec.topology
+    print(topology)
+    df, bonds = topology.to_dataframe()
+    heavy_indices = list(df[df["element"] != "H"].index)
+    print(heavy_indices)
+    trajec = trajec.atom_slice(atom_indices=heavy_indices)
+    print(trajec)
+    trajec_xyz = trajec.xyz * 10
+    print(trajec_xyz.shape)
+    trajec_xyz = trajec_xyz.reshape(
+        (trajec.xyz.shape[0], trajec.xyz.shape[1] * trajec.xyz.shape[2]))
+    print(trajec_xyz.shape)
+    np.savetxt(heavy_atoms_array, trajec_xyz)
 
-################ Alanine Dipeptide Functions ################
+def fix_cap_remove_nme(pdb_file):
+
+    """
+    Removes the H atoms of the capped NME residue.
+
+    """
+
+    remove_words = [
+        "H1  NME",
+        "H2  NME",
+        "H3  NME",
+        "H31 NME",
+        "H32 NME",
+        "H33 NME",
+    ]
+    with open(pdb_file) as oldfile, open("intermediate.pdb", "w") as newfile:
+        for line in oldfile:
+            if not any(word in line for word in remove_words):
+                newfile.write(line)
+    command = "rm -rf " + pdb_file
+    os.system(command)
+    command = "mv intermediate.pdb " + pdb_file
+    os.system(command)
 
 def fix_cap_replace_nme(pdb_file):
 
@@ -309,82 +142,51 @@ def fix_cap_replace_nme(pdb_file):
     fin.write(data)
     fin.close()
 
-def fix_cap_replace_nme_H(pdb_file):
+def add_vectors(traj, top, inpcrd_file):
+    trajec = md.load_frame(traj, top=top, index=0)
+    x = trajec.openmm_boxes(frame=0)
+    x = str(x)
+    x = x.replace("Vec3", "")
+    x = re.findall("\d*\.?\d+", x)
+    for i in range(0, len(x)):
+        x[i] = float(x[i])
+    x = tuple(x)
+    n = int(len(x) / 3)
+    x = [x[i * n : (i + 1) * n] for i in range((len(x) + n - 1) // n)]
+    vectors = ((x[0][0]) * 10, (x[1][1]) * 10, (x[2][2]) * 10)
+    vectors = (round(vectors[0], 7), round(vectors[1], 7), round(vectors[2], 7))
+    new_vectors = []
+    for i in vectors:
+        target_len = 10
+        if len(str(i)) < 10:
+            i = str(i) + (10 - len(str(i))) * "0"
+        else:
+            i = str(i)
+        new_vectors.append(i)
+    new_vectors = tuple(new_vectors)
+    last_line = ( "  " + new_vectors[0] + "  " + new_vectors[1] + "  " + new_vectors[2] + "  90.0000000" + "  90.0000000"  + "  90.0000000")
+    with open(inpcrd_file, "a+") as f:
+        f.write(last_line)
 
-    """
-    Replaces the hydrogen atoms of the
-    capped NME residue with a standard name.
+################ Common Functions ################
 
-    """
+################ Alanine Dipeptide Functions ################
 
-    fin = open(pdb_file, "rt")
-    data = fin.read()
-    data = data.replace("H1  NME", "H31 NME")
-    data = data.replace("H2  NME", "H32 NME")
-    data = data.replace("H3  NME", "H33 NME")
-    fin.close()
-    fin = open(pdb_file, "wt")
-    fin.write(data)
-    fin.close()
-
-def create_alanine_dipeptide_md_inputs(
-    url = "http://ftp.imp.fu-berlin.de/pub/cmb-data/alanine-dipeptide-nowater.pdb", 
-    ref_pdb = "alanine_dipeptide.pdb"
-):
-
-    command = "curl -O " + url
-    os.system(command)
-    command = "mv alanine-dipeptide-nowater.pdb " + ref_pdb
-    os.system(command)
-    file1 = open(ref_pdb, "r")
-    file2 = open("intermediate.pdb", "w")
-    for line in file1.readlines():
-        if "HH" not in line:
-            file2.write(line) 
-    file1.close()
-    file2.close()
-    command = "mv intermediate.pdb " + ref_pdb 
-    os.system(command)
-    line_1 = "source leaprc.protein.ff14SB"
-    line_2 = "pdb = loadpdb " + ref_pdb
-    line_3 = "saveamberparm pdb " + ref_pdb[:-4] + ".prmtop " + ref_pdb[:-4] + ".inpcrd"
-    line_4 = "savepdb pdb " + ref_pdb[:-4] + "_for_amber.pdb"
-    line_5 = "quit"
-    with open("alad.leap", "w") as f:
-        f.write("    " + "\n")
-        f.write(line_1 + "\n")
-        f.write(line_2 + "\n")
-        f.write(line_3 + "\n")
-        f.write(line_4 + "\n")
-        f.write(line_5 + "\n")
-    command = "tleap -f alad.leap"
-    os.system(command)
-    command = "rm -rf alad.leap leap.log"
-    os.system(command)
-    
-def save_alanine_dipeptide_solv_to_no_solvent(traj="alanine_dipeptide.nc", 
-                                              start=0, stop=100000, stride=1, 
-                                              traj_pdb="alanine_dipeptide_.nc",
-                                              top = "alanine_dipeptide.prmtop"):
+def create_phi_psi_solvent_alanine_dipeptide(traj, top, phi_psi_txt, start=0, stop=100000, stride=1):
     trajec = md.load(traj, top=top)
-    print(trajec)
     trajec = trajec.remove_solvent()
     trajec = trajec[start:stop:stride]
-    print(trajec)
-    trajec.save_netcdf(traj_pdb, force_overwrite=True)  
-    
-def create_alanine_dipeptide_traj_for_molearn(traj="alanine_dipeptide_.nc", 
-                                              ref_pdb="alanine_dipeptide_for_amber.pdb", 
-                                              start=0, stop=100000, stride=1, 
-                                              traj_pdb="alad_multi.pdb"):
-    topology = md.load(ref_pdb).topology
-    print(topology)
-    trajec = md.load(traj, top=ref_pdb)
-    print(trajec)
-    trajec = md.Trajectory.superpose(trajec, reference = trajec[0])
-    trajec = trajec[start:stop:stride]
-    print(trajec)
-    trajec.save_pdb(traj_pdb, force_overwrite=True)  
+    phi = md.compute_phi(trajec)
+    phi = phi[1]  # 0:indices, 1:phi angles
+    print(phi.shape)
+    psi = md.compute_psi(trajec)
+    psi = psi[1]  # 0:indices, 1:phi angles
+    print(psi.shape)
+    phi_psi = np.array([list(x) for x in zip(phi, psi)])
+    print(phi_psi.shape)
+    phi_psi = phi_psi.reshape((phi_psi.shape[0], phi_psi.shape[1] * phi_psi.shape[2]))
+    print(phi_psi.shape)
+    np.savetxt(phi_psi_txt, phi_psi)
 
 def create_rmsd_rg_alanine_dipeptide_top(traj, top, rmsd_rg_txt, start = 0, stop = 100000, stride = 1):
     trajec = md.load(traj, top = top)
@@ -399,152 +201,29 @@ def create_rmsd_rg_alanine_dipeptide_top(traj, top, rmsd_rg_txt, start = 0, stop
     print(rmsd_rg.shape)
     np.savetxt(rmsd_rg_txt, rmsd_rg)
 
-"""
-create_alanine_dipeptide_md_inputs()
-save_alanine_dipeptide_solv_to_no_solvent()
-create_alanine_dipeptide_traj_for_molearn()
-"""
-################ Alanine Dipeptide Functions ################
-
-################ BPTI Functions ################
-
-def get_chignolin_ref_pdb():
-    ref_pdb = "system_final.pdb"
-    command = "curl -O https://files.rcsb.org/download/1UAO.pdb1.gz"
-    os.system(command)
-    command = "gunzip 1UAO.pdb1.gz"
-    os.system(command)
-    command = "mv 1UAO.pdb1 " + ref_pdb
-    os.system(command)
-
-def fix_cap_chignolin(pdb_file):
-    remove_words = ["H   GLY A"]
-    with open(pdb_file) as oldfile, open("intermediate.pdb", "w") as newfile:
-        for line in oldfile:
-            if not any(word in line for word in remove_words):
-                newfile.write(line)
-    command = "rm -rf " + pdb_file
-    os.system(command)
-    command = "mv intermediate.pdb " + pdb_file
-    os.system(command)
-
-def fix_cap_replace_arg(pdb_file):
-    fin = open(pdb_file, "rt")
-    data = fin.read()
-    data = data.replace("H   ARG A   1", "H1  ARG A   1")
-    fin.close()
-    fin = open(pdb_file, "wt")
-    fin.write(data)
-    fin.close()
-
-def create_bpti_traj_for_molearn(
-    traj = "system_final.nc", 
-    top = "system_final.prmtop", 
-    traj_pdb = "bpti_multi.pdb", 
-    start = 0, 
-    stop = 100000, 
-    stride = 1
-):
-
-    trajec = md.load(traj, top=top)
-    print(trajec)
-    trajec = trajec.remove_solvent()
-    trajec = md.Trajectory.superpose(trajec, reference = trajec[0])
-    trajec = trajec[start:stop:stride]
-    print(trajec)
-    trajec.save_pdb(traj_pdb, force_overwrite=True)
-    file1 = open(traj_pdb, "r")
-    file2 = open("intermediate.pdb", "w")
-    for line in file1.readlines():
-        if "REMARK" not in line:
-            file2.write(line) 
-    file1.close()
-    file2.close()
-    file1 = open("intermediate.pdb", "r")
-    file2 = open(traj_pdb, "w")
-    for line in file1.readlines():
-        if "MODEL" not in line:
-            file2.write(line) 
-    file1.close()
-    file2.close()
-    file1 = open(traj_pdb, "r")
-    file2 = open("intermediate.pdb", "w")
-    for line in file1.readlines():
-        if "TER" not in line:
-            file2.write(line) 
-    file1.close()
-    file2.close()
-    file1 = open("intermediate.pdb", "r")
-    file2 = open(traj_pdb, "w")
-    for line in file1.readlines():
-        if "CRYST" not in line:
-            file2.write(line) 
-    file1.close()
-    file2.close()
-    with open(traj_pdb, 'r') as file :
-        filedata = file.read()
-    filedata = filedata.replace('ENDMDL', 'END')
-    with open(traj_pdb, 'w') as file:
-        file.write(filedata)
-    command ="rm -rf *intermediate* "
-    os.system(command)
-
-def create_non_H_bpti_traj_for_molearn(
-    traj_pdb = "bpti_multi.pdb", 
-    traj_pdb_non_H = "bpti_multi_non_H.pdb"
-):
-
-    with open(traj_pdb, 'r') as file :
-        filedata = file.read()
-    filedata = filedata.replace('END', 'TER')
-    with open("intermediate.pdb", 'w') as file:
-        file.write(filedata)
-    ppdb = PandasPdb()
-    ppdb.read_pdb("intermediate.pdb")
-    no_host_atoms = ppdb.df["ATOM"].shape[0]
-    ppdb.df["ATOM"] = ppdb.df["ATOM"][ppdb.df["ATOM"]["element_symbol"] != "H"]
-    ppdb.to_pdb(path="intermediate.pdb", records=None, gz=False, append_newline=True)
-    with open("intermediate.pdb", 'r') as file :
-        filedata = file.read()
-    filedata = filedata.replace('TER', 'END')
-    with open(traj_pdb_non_H, 'w') as file:
-        file.write(filedata)
-    command ="rm -rf *intermediate* "
-    os.system(command)
-
-def gen_amber_files_bpti(
-    dirname, 
-    pad = 12, 
-    Cl = 6
-):
-
-    current_pwd = os.getcwd()
-    target_pwd = current_pwd + "/" + dirname
-    os.chdir(target_pwd)
+def run_min_alanine_dipeptide_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
     files = os.listdir(".")
     file_to_find = "*.pdb"
     pdb_list = []
     for x in files:
         if fnmatch.fnmatch(x, file_to_find):
             pdb_list.append(x)
-    for i in pdb_list :   
-        ref_pdb = i
-        leap_file = "bpti.leap"
+    # Fixing capping issues in mdtraj saved pdb files
+    for i in pdb_list:
+        pdb_file = i
+        fix_cap_remove_nme(pdb_file)
+        fix_cap_replace_nme(pdb_file)
+    # Saving inpcrd file from mdtraj saved pdb files
+    for i in pdb_list:
+        pdb_file = i
         line_1 = "source leaprc.protein.ff14SB"
-        line_2 = "loadOff solvents.lib"
-        line_3 = "loadOff tip4pbox.off"
-        line_4 = "loadOff tip4pewbox.off"
-        line_5 = "source leaprc.water.tip4pew"
-        line_6 = "HOH = TP4"
-        line_7 = "pdb = loadpdb " + ref_pdb
-        line_8 = "charge pdb"
-        #line_9 = "addions2 pdb Cl- " + str(Cl)
-        line_10 = "charge pdb"
-        line_11 = "solvatebox pdb TIP4PEWBOX " + str(pad)
-        line_12 = "saveamberparm pdb " + ref_pdb[:-4] + ".prmtop " + ref_pdb[:-4] + ".inpcrd"
-        line_13 = "savepdb pdb " + ref_pdb[:-4] + "_solvated.pdb"
-        line_14 = "quit"
-        with open(leap_file, "w") as f:
+        line_2 = "source leaprc.water.tip3p"
+        line_3 = "set default FlexibleWater on"
+        line_4 = "set default PBRadii mbondi2"
+        line_5 = "pdb = loadpdb " + pdb_file
+        line_6 = "saveamberparm pdb " + pdb_file[:-4] + ".prmtop " + pdb_file[:-4] + ".inpcrd"
+        line_7 = "quit"
+        with open("input.leap", "w") as f:
             f.write("    " + "\n")
             f.write(line_1 + "\n")
             f.write(line_2 + "\n")
@@ -553,84 +232,99 @@ def gen_amber_files_bpti(
             f.write(line_5 + "\n")
             f.write(line_6 + "\n")
             f.write(line_7 + "\n")
-            f.write(line_8 + "\n")
-            #f.write(line_9 + "\n")
-            f.write(line_10 + "\n")
-            f.write(line_11 + "\n")
-            f.write(line_12 + "\n")
-            f.write(line_13 + "\n")
-            f.write(line_14 + "\n")
-        command = "tleap -f " + leap_file
+        command = "tleap -f input.leap"
         os.system(command)
-        command = "rm -rf leap.log bpti.leap"
+        command = "rm -rf input.leap"
         os.system(command)
-        command = "mv " + ref_pdb + " " + " " + ref_pdb[:-4] + "_unsolvated.pdb"
-        os.system(command)
-        command = "mv " + ref_pdb[:-4] + "_solvated.pdb" + " " + ref_pdb
-        os.system(command)
-    # Move inpcrd files to another folder
     files = os.listdir(".")
     file_to_find = "*.inpcrd"
-    inpcrd_files = []
+    inpcrd_list = []
     for x in files:
         if fnmatch.fnmatch(x, file_to_find):
-            inpcrd_files.append(x)
-    command = "rm -rf inpcrds"
-    os.system(command)
-    command = "mkdir inpcrds"
-    os.system(command)
-    for i in inpcrd_files:
-        command = "mv " + i + " " + "inpcrds"
+            inpcrd_list.append(x)
+    for i in inpcrd_list:
+        add_vectors(traj=traj, top=top, inpcrd_file=i)
+    # Creating Amber MD input file
+    with open("md.in", "w") as f:
+        f.write("Run minimization followed by saving rst file" + "\n")
+        f.write("&cntrl" + "\n")
+        f.write("  imin = 1, maxcyc = " + str(maxcyc) + ", ntpr = 50, iwrap = 1, ntxo = 1" + "\n")
+        f.write("&end" + "\n")
+    # Running short MD simulations to save .rst file
+    for i in pdb_list:
+        pdb_file = i
+        if cuda == "available":
+            command = "pmemd.cuda -O -i md.in -o " + pdb_file[:-4] + ".out" + " -p " + pdb_file[:-4] + ".prmtop" + " -c " + pdb_file[:-4] + ".inpcrd" + " -r " + pdb_file[:-4] + ".rst"
+            print(command)
+        if cuda == "unavailable":
+            command = "sander -O -i md.in -o " + pdb_file[:-4] + ".out" + " -p " + pdb_file[:-4] + ".prmtop" + " -c " + pdb_file[:-4] + ".inpcrd" + " -r " + pdb_file[:-4] + ".rst"
+            print(command)
         os.system(command)
-    # Move prmtop files to another folder
-    files = os.listdir(".")
-    file_to_find = "*.prmtop"
-    prmtop_files = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            prmtop_files.append(x)
-    command = "rm -rf prmtops"
+    # Deleting md.in file
+    command = "rm -rf md.in __pycache__  leap.log mdinfo"
     os.system(command)
-    command = "mkdir prmtops"
+
+################ Alanine Dipeptide Functions ################
+
+################ Chignolin Functions ################
+
+def create_heavy_atom_xyz_chignolin(traj, heavy_atoms_array, start=0, stop=100000, stride=1):
+    # Download the reference PDB to be used when the .nc file is without solvent. Otherwise, use the prmtop file
+    ref_pdb = "chignolin.pdb"
+    command = "curl -O https://files.rcsb.org/download/1UAO.pdb1.gz"
     os.system(command)
-    for i in prmtop_files:
-        command = "mv " + i + " " + "prmtops"
-        os.system(command)    
-    # Move reference PDB files to another folder
-    files = os.listdir(".")
-    file_to_find = "*_unsolvated.pdb"
-    pdb_files = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            pdb_files.append(x)
-    command = "rm -rf refs"
+    command = "gunzip 1UAO.pdb1.gz"
     os.system(command)
-    command = "mkdir refs"
+    command = "mv 1UAO.pdb1 " + ref_pdb
     os.system(command)
-    for i in pdb_files:
-        command = "mv " + i + " " + "refs"
-        os.system(command)    
-    ref_pwd = target_pwd + "/" + "refs"
-    os.chdir(ref_pwd)
-    for i in pdb_files:
-        command = "mv " + i + " " + i[:-15] + ".pdb"
-        os.system(command)
-    os.chdir(target_pwd)
-    # Move PDB files to another folder
-    files = os.listdir(".")
-    file_to_find = "*.pdb"
-    pdb_files = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            pdb_files.append(x)
-    command = "rm -rf pdbs"
+    topology = md.load(ref_pdb).topology
+    print(topology)
+    df, bonds = topology.to_dataframe()
+    heavy_indices = list(df[df["element"] != "H"].index)
+    print(heavy_indices)
+    trajec = md.load(traj, top=ref_pdb)
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    trajec = trajec.atom_slice(atom_indices=heavy_indices)
+    print(trajec)
+    trajec_xyz = trajec.xyz * 10
+    print(trajec_xyz.shape)
+    trajec_xyz = trajec_xyz.reshape((trajec.xyz.shape[0], trajec.xyz.shape[1] * trajec.xyz.shape[2]))
+    print(trajec_xyz.shape)
+    np.savetxt(heavy_atoms_array, trajec_xyz)
+
+def create_rmsd_rg_chignolin(traj, rmsd_rg_txt, start = 0, stop = 100000, stride = 1):
+    ref_pdb = "chignolin.pdb"
+    command = "curl -O https://files.rcsb.org/download/1UAO.pdb1.gz"
     os.system(command)
-    command = "mkdir pdbs"
+    command = "gunzip 1UAO.pdb1.gz"
     os.system(command)
-    for i in pdb_files:
-        command = "mv " + i + " " + "pdbs"
-        os.system(command)    
-    os.chdir(current_pwd)
+    command = "mv 1UAO.pdb1 " + ref_pdb
+    os.system(command)
+    trajec = md.load(traj, top=ref_pdb)
+    trajec = trajec.remove_solvent()
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    rmsd = md.rmsd(trajec, trajec, 0)
+    print(rmsd.shape)
+    rg = md.compute_rg(trajec)
+    print(rg.shape)
+    rmsd_rg = np.array([list(x) for x in zip(list(rmsd), list(rg))])
+    print(rmsd_rg.shape)
+    np.savetxt(rmsd_rg_txt, rmsd_rg)
+
+def create_rmsd_rg_chignolin_top(traj, top, rmsd_rg_txt, start = 0, stop = 100000, stride = 1):
+    trajec = md.load(traj, top = top)
+    trajec = trajec.remove_solvent()
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    rmsd = md.rmsd(trajec, trajec, 0)
+    print(rmsd.shape)
+    rg = md.compute_rg(trajec)
+    print(rg.shape)
+    rmsd_rg = np.array([list(x) for x in zip(list(rmsd), list(rg))])
+    print(rmsd_rg.shape)
+    np.savetxt(rmsd_rg_txt, rmsd_rg)
 
 def run_min_chignolin_westpa_dir(traj, top, maxcyc = 200, cuda = "available"):
     files = os.listdir(".")
@@ -685,6 +379,10 @@ def run_min_chignolin_westpa_dir(traj, top, maxcyc = 200, cuda = "available"):
     command = "rm -rf md.in __pycache__  leap.log mdinfo"
     os.system(command)
 
+################ Chignolin Functions ################
+
+################ BPTI Functions ################
+
 def get_dihed_traj(traj, index_dihed):
     dihed = "@" + str(index_dihed[0]) + " " +  "@" + str(index_dihed[1]) + " " +  "@" + str(index_dihed[2]) +  " " + "@" + str(index_dihed[3])
     dihed_traj = pt.dihedral(traj, dihed)
@@ -713,6 +411,15 @@ def create_rmsd_rg_bpti_top(traj, top, rmsd_rg_txt, start = 0, stop = 100000, st
     print(rmsd_rg.shape)
     np.savetxt(rmsd_rg_txt, rmsd_rg)
 
+def fix_cap_replace_arg(pdb_file):
+    fin = open(pdb_file, "rt")
+    data = fin.read()
+    data = data.replace("H   ARG A   1", "H1  ARG A   1")
+    fin.close()
+    fin = open(pdb_file, "wt")
+    fin.write(data)
+    fin.close()
+
 def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
     files = os.listdir(".")
     file_to_find = "*.pdb"
@@ -728,17 +435,12 @@ def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
     for i in pdb_list:
         pdb_file = i
         line_1 = "source leaprc.protein.ff14SB"
-        line_2 = "loadOff solvents.lib"
-        line_3 = "loadOff tip4pbox.off"
-        line_4 = "loadOff tip4pewbox.off"
-        line_5 = "source leaprc.water.tip4pew"
-        line_6 = "HOH = TP4"
-        line_7 = "pdb = loadpdb " + pdb_file
-        line_8 = "addions2 pdb Cl- 6"
-        line_9 = "solvatebox pdb TIP4PEWBOX 12.0"
-        line_10 = "set default PBRadii mbondi2"
-        line_11 = "saveamberparm pdb " + pdb_file[:-4] + ".prmtop " + pdb_file[:-4] + ".inpcrd"
-        line_12 = "quit"
+        line_2 = "source leaprc.water.tip4pew"
+        line_3 = "set default FlexibleWater on"
+        line_4 = "set default PBRadii mbondi2"
+        line_5 = "pdb = loadpdb " + pdb_file
+        line_6 = "saveamberparm pdb " + pdb_file[:-4] + ".prmtop " + pdb_file[:-4] + ".inpcrd"
+        line_7 = "quit"
         with open("input.leap", "w") as f:
             f.write("    " + "\n")
             f.write(line_1 + "\n")
@@ -748,11 +450,6 @@ def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
             f.write(line_5 + "\n")
             f.write(line_6 + "\n")
             f.write(line_7 + "\n")
-            f.write(line_8 + "\n")
-            f.write(line_9 + "\n")
-            f.write(line_10 + "\n")
-            f.write(line_11 + "\n")
-            f.write(line_12 + "\n")
         command = "tleap -f input.leap"
         os.system(command)
         command = "rm -rf input.leap"
@@ -787,297 +484,7 @@ def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
 
 ################ BPTI Functions ################
 
-################ 1IGD Functions ################
-
-def save_1igd_solv_to_no_solvent(
-    traj="system_final.nc", 
-    start=0, 
-    stop=100000, 
-    stride=1, 
-    traj_pdb="system_final_non_solvent.nc",
-    top = "system_final.prmtop"
-):
-
-    trajec = md.load(traj, top=top)
-    print(trajec)
-    trajec = trajec.remove_solvent()
-    trajec = md.Trajectory.superpose(trajec, reference = trajec[0])
-    trajec = trajec[start:stop:stride]
-    print(trajec)
-    trajec.save_netcdf(traj_pdb, force_overwrite=True)
-
-def create_1igd_for_amber(
-    url = "https://files.rcsb.org/download/1IGD.pdb", 
-    ref_pdb = "1igd.pdb"
-):
-
-    command = "curl -O " + url
-    os.system(command)
-    command = "mv 1IGD.pdb " + ref_pdb
-    os.system(command)
-    command = "pdb4amber -i " + ref_pdb + " -o " + "intermediate.pdb" + " --dry"
-    os.system(command)
-    command ="rm -rf *nonprot* *renum* *sslink* *_water* "
-    os.system(command)
-    file1 = open("intermediate.pdb", "r")
-    file2 = open(ref_pdb, "w")
-    for line in file1.readlines():
-        if "REMARK" not in line:
-            file2.write(line) 
-    file1.close()
-    file2.close()
-    command ="rm -rf *intermediate* "
-    os.system(command)
-    line_1 = "source leaprc.protein.ff14SB"
-    line_2 = "pdb = loadpdb " + ref_pdb
-    line_3 = "savepdb pdb " + ref_pdb[:-4] + "_for_amber.pdb"
-    line_4 = "quit"
-    with open("1igd.leap", "w") as f:
-        f.write("    " + "\n")
-        f.write(line_1 + "\n")
-        f.write(line_2 + "\n")
-        f.write(line_3 + "\n")
-        f.write(line_4 + "\n")
-    command = "tleap -f 1igd.leap"
-    os.system(command)
-    command = "rm -rf 1igd.leap leap.log"
-    os.system(command)
-    
-def create_1igd_traj_for_molearn(
-    traj="system_final_non_solvent.nc", 
-    ref_pdb="1igd_for_amber.pdb", 
-    start=0, 
-    stop=100000, 
-    stride=1, 
-    traj_pdb="1igd_multi.pdb"
-):
-
-    topology = md.load(ref_pdb).topology
-    print(topology)
-    trajec = md.load(traj, top=ref_pdb)
-    print(trajec)
-    trajec = md.Trajectory.superpose(trajec, reference = trajec[0])
-    trajec = trajec[start:stop:stride]
-    print(trajec)
-    trajec.save_pdb(traj_pdb, force_overwrite=True)  
-    file1 = open(traj_pdb, "r")
-    file2 = open("intermediate.pdb", "w")
-    for line in file1.readlines():
-        if "REMARK" not in line:
-            file2.write(line) 
-    file1.close()
-    file2.close()
-    file1 = open("intermediate.pdb", "r")
-    file2 = open(traj_pdb, "w")
-    for line in file1.readlines():
-        if "MODEL" not in line:
-            file2.write(line) 
-    file1.close()
-    file2.close()
-    file1 = open(traj_pdb, "r")
-    file2 = open("intermediate.pdb", "w")
-    for line in file1.readlines():
-        if "TER" not in line:
-            file2.write(line) 
-    file1.close()
-    file2.close()
-    file1 = open("intermediate.pdb", "r")
-    file2 = open(traj_pdb, "w")
-    for line in file1.readlines():
-        if "CRYST" not in line:
-            file2.write(line) 
-    file1.close()
-    file2.close()
-    with open(traj_pdb, 'r') as file :
-        filedata = file.read()
-    filedata = filedata.replace('ENDMDL', 'END')
-    with open(traj_pdb, 'w') as file:
-        file.write(filedata)
-    command ="rm -rf *intermediate* "
-    os.system(command)
-
-def create_non_H_1igd_traj_for_molearn(
-    traj_pdb = "1igd_multi.pdb", 
-    traj_pdb_non_H = "1igd_multi_non_H.pdb"
-):
-
-    with open(traj_pdb, 'r') as file :
-        filedata = file.read()
-    filedata = filedata.replace('END', 'TER')
-    with open("intermediate.pdb", 'w') as file:
-        file.write(filedata)
-    ppdb = PandasPdb()
-    ppdb.read_pdb("intermediate.pdb")
-    no_host_atoms = ppdb.df["ATOM"].shape[0]
-    ppdb.df["ATOM"] = ppdb.df["ATOM"][ppdb.df["ATOM"]["element_symbol"] != "H"]
-    ppdb.to_pdb(path="intermediate.pdb", records=None, gz=False, append_newline=True)
-    with open("intermediate.pdb", 'r') as file :
-        filedata = file.read()
-    filedata = filedata.replace('TER', 'END')
-    with open(traj_pdb_non_H, 'w') as file:
-        file.write(filedata)
-    command ="rm -rf *intermediate* "
-    os.system(command)
-
-
-def gen_amber_files_1igd(
-    dirname, 
-    pad = 12, 
-    Na = 2
-):
-
-    current_pwd = os.getcwd()
-    target_pwd = current_pwd + "/" + dirname
-    os.chdir(target_pwd)
-    files = os.listdir(".")
-    file_to_find = "*.pdb"
-    pdb_list = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            pdb_list.append(x)
-    for i in pdb_list :   
-        ref_pdb = i
-        leap_file = "1igd.leap"
-        line_1 = "source leaprc.protein.ff14SB"
-        line_2 = "loadOff solvents.lib"
-        line_3 = "loadOff tip4pbox.off"
-        line_4 = "loadOff tip4pewbox.off"
-        line_5 = "source leaprc.water.tip4pew"
-        line_6 = "HOH = TP4"
-        line_7 = "pdb = loadpdb " + ref_pdb
-        line_8 = "charge pdb"
-        line_9 = "addions2 pdb Na+ " + str(Na)
-        line_10 = "charge pdb"
-        line_11 = "solvatebox pdb TIP4PEWBOX " + str(pad)
-        line_12 = "saveamberparm pdb " + ref_pdb[:-4] + ".prmtop " + ref_pdb[:-4] + ".inpcrd"
-        line_13 = "savepdb pdb " + ref_pdb[:-4] + "_solvated.pdb"
-        line_14 = "quit"
-        with open(leap_file, "w") as f:
-            f.write("    " + "\n")
-            f.write(line_1 + "\n")
-            f.write(line_2 + "\n")
-            f.write(line_3 + "\n")
-            f.write(line_4 + "\n")
-            f.write(line_5 + "\n")
-            f.write(line_6 + "\n")
-            f.write(line_7 + "\n")
-            f.write(line_8 + "\n")
-            f.write(line_9 + "\n")
-            f.write(line_10 + "\n")
-            f.write(line_11 + "\n")
-            f.write(line_12 + "\n")
-            f.write(line_13 + "\n")
-            f.write(line_14 + "\n")
-        command = "tleap -f " + leap_file
-        os.system(command)
-        command = "rm -rf leap.log 1igd.leap"
-        os.system(command)
-        command = "mv " + ref_pdb + " " + " " + ref_pdb[:-4] + "_unsolvated.pdb"
-        os.system(command)
-        command = "mv " + ref_pdb[:-4] + "_solvated.pdb" + " " + ref_pdb
-        os.system(command)
-    # Move inpcrd files to another folder
-    files = os.listdir(".")
-    file_to_find = "*.inpcrd"
-    inpcrd_files = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            inpcrd_files.append(x)
-    command = "rm -rf inpcrds"
-    os.system(command)
-    command = "mkdir inpcrds"
-    os.system(command)
-    for i in inpcrd_files:
-        command = "mv " + i + " " + "inpcrds"
-        os.system(command)
-    # Move prmtop files to another folder
-    files = os.listdir(".")
-    file_to_find = "*.prmtop"
-    prmtop_files = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            prmtop_files.append(x)
-    command = "rm -rf prmtops"
-    os.system(command)
-    command = "mkdir prmtops"
-    os.system(command)
-    for i in prmtop_files:
-        command = "mv " + i + " " + "prmtops"
-        os.system(command)    
-    # Move reference PDB files to another folder
-    files = os.listdir(".")
-    file_to_find = "*_unsolvated.pdb"
-    pdb_files = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            pdb_files.append(x)
-    command = "rm -rf refs"
-    os.system(command)
-    command = "mkdir refs"
-    os.system(command)
-    for i in pdb_files:
-        command = "mv " + i + " " + "refs"
-        os.system(command)    
-    ref_pwd = target_pwd + "/" + "refs"
-    os.chdir(ref_pwd)
-    for i in pdb_files:
-        command = "mv " + i + " " + i[:-15] + ".pdb"
-        os.system(command)
-    os.chdir(target_pwd)
-    # Move PDB files to another folder
-    files = os.listdir(".")
-    file_to_find = "*.pdb"
-    pdb_files = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            pdb_files.append(x)
-    command = "rm -rf pdbs"
-    os.system(command)
-    command = "mkdir pdbs"
-    os.system(command)
-    for i in pdb_files:
-        command = "mv " + i + " " + "pdbs"
-        os.system(command)    
-    os.chdir(current_pwd)
-
-################ 1IGD Functions ################
-
 ################ WESTPA Functions ################
-
-def extract_single_pdbs(dirname):
-    pwd = os.getcwd()
-    dir = os.path.join(pwd, dirname)
-    files = os.listdir(dirname)
-    pdbs = []
-    for file in files:
-        if file[-4:] == ".pdb":
-            pdbs.append(file)
-    num_multipdbs = len(pdbs)
-    command = "rm -rf extracted_pdbs"
-    os.system(command)
-    os.mkdir("extracted_pdbs")
-    num_pdb = 0   # keeping track of total number of single pdbs
-    f_pdb = open(os.path.join(pwd, "extracted_pdbs/0.pdb"), "w")
-    for pdb_num in range(num_multipdbs):
-        pdb = str(pdb_num) + ".pdb"
-        print("Extracting " + pdb)
-        with open(os.path.join(pwd, "interpolated_trajs", pdb), "r") as f:
-            lines = f.readlines()
-            num_pdbs = lines.count("END\n")
-            print(str(num_pdbs) + " in " + pdb)
-            for line in lines:
-                if line[0:3] == "END":
-                    f_pdb.write("END")
-                    f_pdb.close()
-                    num_pdb = num_pdb + 1
-                    pdb_name = str(num_pdb) + ".pdb"
-                    f_pdb = open(os.path.join(pwd, "extracted_pdbs", pdb_name), "w")
-                else:
-                    f_pdb.write(line)
-    last_pdb = str(num_pdb) + ".pdb"
-    last_pdb_path = os.path.join(pwd, "extracted_pdbs", last_pdb)
-    command = f"rm -rf {last_pdb_path}"
-    os.system(command)
 
 def create_westpa_dir(traj_file, top, indices, shuffled_indices):
     os.system("rm -rf westpa_dir")
@@ -1088,177 +495,6 @@ def create_westpa_dir(traj_file, top, indices, shuffled_indices):
         pdb_name = str(i) + ".pdb"
         pdb_path = os.path.join(os.getcwd(), "westpa_dir/" + pdb_name)
         traj_frame.save_pdb(pdb_path, force_overwrite=True)
-
-def run_min_alanine_dipeptide_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
-    files = os.listdir(".")
-    file_to_find = "*.pdb"
-    pdb_list = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            pdb_list.append(x)
-    # Fixing capping issues in mdtraj saved pdb files
-    for i in pdb_list:
-        pdb_file = i
-        fix_cap_remove_nme(pdb_file)
-        fix_cap_replace_nme(pdb_file)
-    # Saving inpcrd file from mdtraj saved pdb files
-    for i in pdb_list:
-        pdb_file = i
-        line_1 = "source leaprc.protein.ff14SB"
-        line_2 = "source leaprc.water.tip4pew"
-        line_3 = "set default FlexibleWater on"
-        line_4 = "set default PBRadii mbondi2"
-        line_5 = "pdb = loadpdb " + pdb_file
-        line_6 = "saveamberparm pdb " + pdb_file[:-4] + ".prmtop " + pdb_file[:-4] + ".inpcrd"
-        line_7 = "quit"
-        with open("input.leap", "w") as f:
-            f.write("    " + "\n")
-            f.write(line_1 + "\n")
-            f.write(line_2 + "\n")
-            f.write(line_3 + "\n")
-            f.write(line_4 + "\n")
-            f.write(line_5 + "\n")
-            f.write(line_6 + "\n")
-            f.write(line_7 + "\n")
-        command = "tleap -f input.leap"
-        os.system(command)
-        command = "rm -rf input.leap"
-        os.system(command)
-    files = os.listdir(".")
-    file_to_find = "*.inpcrd"
-    inpcrd_list = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            inpcrd_list.append(x)
-    for i in inpcrd_list:
-        add_vectors(traj=traj, top=top, inpcrd_file=i)
-    # Creating Amber MD input file
-    with open("md.in", "w") as f:
-        f.write("Run minimization followed by saving rst file" + "\n")
-        f.write("&cntrl" + "\n")
-        f.write("  imin = 1, maxcyc = " + str(maxcyc) + ", ntpr = 50, iwrap = 1, ntxo = 1" + "\n")
-        f.write("&end" + "\n")
-    # Running short MD simulations to save .rst file
-    for i in pdb_list:
-        pdb_file = i
-        if cuda == "available":
-            command = "pmemd.cuda -O -i md.in -o " + pdb_file[:-4] + ".out" + " -p " + pdb_file[:-4] + ".prmtop" + " -c " + pdb_file[:-4] + ".inpcrd" + " -r " + pdb_file[:-4] + ".rst"
-            print(command)
-        if cuda == "unavailable":
-            command = "sander -O -i md.in -o " + pdb_file[:-4] + ".out" + " -p " + pdb_file[:-4] + ".prmtop" + " -c " + pdb_file[:-4] + ".inpcrd" + " -r " + pdb_file[:-4] + ".rst"
-            print(command)
-        os.system(command)
-    # Deleting md.in file
-    command = "rm -rf md.in __pycache__  leap.log mdinfo"
-    os.system(command)
-
-def create_westpa_filetree():
-    files = os.listdir(".")
-    file_to_find = "*.rst"
-    rst_list = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            rst_list.append(x)
-    current_dir = os.getcwd()
-    target_dir = current_dir + "/" + "bstates_rst"
-    os.system("rm -rf bstates_rst")
-    os.system("mkdir bstates_rst")
-    for i in rst_list:
-        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
-    files = os.listdir(".")
-    file_to_find = "*.pdb"
-    pdb_list = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            pdb_list.append(x)
-    current_dir = os.getcwd()
-    target_dir = current_dir + "/" + "bstates_pdb"
-    os.system("rm -rf bstates_pdb")
-    os.system("mkdir bstates_pdb")
-    for i in pdb_list:
-        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
-    files = os.listdir(".")
-    file_to_find = "*.inpcrd"
-    inpcrd_list = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            inpcrd_list.append(x)
-    current_dir = os.getcwd()
-    target_dir = current_dir + "/" + "bstates_inpcrd"
-    os.system("rm -rf bstates_inpcrd")
-    os.system("mkdir bstates_inpcrd")
-    for i in inpcrd_list:
-        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
-    files = os.listdir(".")
-    file_to_find = "*.prmtop"
-    prmtop_list = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            prmtop_list.append(x)
-    current_dir = os.getcwd()
-    target_dir = current_dir + "/" + "bstates_prmtop"
-    os.system("rm -rf bstates_prmtop")
-    os.system("mkdir bstates_prmtop")
-    for i in prmtop_list:
-        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
-    files = os.listdir(".")
-    file_to_find = "*.out"
-    out_list = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            out_list.append(x)
-    current_dir = os.getcwd()
-    target_dir = current_dir + "/" + "bstates_out"
-    os.system("rm -rf bstates_out")
-    os.system("mkdir bstates_out")
-    for i in out_list:
-        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
-    files = os.listdir(".")
-    file_to_find = "*.rst"
-    rst_list = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            rst_list.append(x)
-    prob = round(1 / len(rst_list), 10)
-    prob_list = [prob] * len(rst_list)
-    index = []
-    for i in range(len(rst_list)):
-        index.append(i)
-    data = [index, prob_list, rst_list]
-    df = pd.DataFrame(data)
-    df = df.transpose()
-    df.columns = ["index", "prob", "file"]
-    df.to_csv("BASIS_STATES_RST", sep="\t", index=False, header=False)
-    files = os.listdir(".")
-    file_to_find = "*.inpcrd"
-    inpcrd_list = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            inpcrd_list.append(x)
-    prob = round(1 / len(inpcrd_list), 10)
-    prob_list = [prob] * len(inpcrd_list)
-    index = []
-    for i in range(len(inpcrd_list)):
-        index.append(i)
-    data = [index, prob_list, inpcrd_list]
-    df = pd.DataFrame(data)
-    df = df.transpose()
-    df.columns = ["index", "prob", "file"]
-    df.to_csv("BASIS_STATES_INPCRD", sep="\t", index=False, header=False)
-    files = os.listdir(".")
-    file_to_find = "*.prmtop"
-    prmtop_list = []
-    for x in files:
-        if fnmatch.fnmatch(x, file_to_find):
-            prmtop_list.append(x)
-    current_dir = os.getcwd()
-    target_dir = current_dir + "/" + "CONFIG"
-    os.system("rm -rf CONFIG")
-    os.system("mkdir CONFIG")
-    prmtop_file = prmtop_list[0]
-    shutil.copy(current_dir + "/" + prmtop_file, target_dir + "/" + "system_final.prmtop")
-    command = "rm -rf *.pdb* *.inpcrd* *.prmtop* *.rst* *.out* "
-    os.system(command)
 
 def create_biased_westpa_filetree(state_indices, num_states):
     files = os.listdir(".")
@@ -1395,290 +631,7 @@ def create_biased_westpa_filetree(state_indices, num_states):
 
 ################ WESTPA Functions ################
 
-################ VAMPnet Functions ################
-
-def create_heavy_atom_xyz_solvent(traj, top, heavy_atoms_array, start=0, stop=100000, stride=1):
-    trajec = md.load(traj, top=top)
-    trajec = trajec.remove_solvent()
-    trajec = md.Trajectory.superpose(trajec, reference = trajec[0])
-    trajec = trajec[start:stop:stride]
-    print(trajec)
-    topology = trajec.topology
-    print(topology)
-    df, bonds = topology.to_dataframe()
-    heavy_indices = list(df[df["element"] != "H"].index)
-    print(heavy_indices)
-    trajec = trajec.atom_slice(atom_indices=heavy_indices)
-    print(trajec)
-    trajec_xyz = trajec.xyz * 10
-    print(trajec_xyz.shape)
-    trajec_xyz = trajec_xyz.reshape(
-        (trajec.xyz.shape[0], trajec.xyz.shape[1] * trajec.xyz.shape[2]))
-    print(trajec_xyz.shape)
-    np.savetxt(heavy_atoms_array, trajec_xyz)
-
-def create_heavy_atom_xyz_no_solvent(traj, top, heavy_atoms_array, start=0, stop=100000, stride=1):
-    trajec = md.load(traj, top=top)
-    trajec = md.Trajectory.superpose(trajec, reference = trajec[0])
-    trajec = trajec[start:stop:stride]
-    print(trajec)
-    topology = trajec.topology
-    print(topology)
-    df, bonds = topology.to_dataframe()
-    heavy_indices = list(df[df["element"] != "H"].index)
-    print(heavy_indices)
-    trajec = trajec.atom_slice(atom_indices=heavy_indices)
-    print(trajec)
-    trajec_xyz = trajec.xyz * 10
-    print(trajec_xyz.shape)
-    trajec_xyz = trajec_xyz.reshape(
-        (trajec.xyz.shape[0], trajec.xyz.shape[1] * trajec.xyz.shape[2]))
-    print(trajec_xyz.shape)
-    np.savetxt(heavy_atoms_array, trajec_xyz)
-
-def create_phi_psi_solvent_alanine_dipeptide(traj, top, phi_psi_txt, start=0, stop=100000, stride=1):
-    trajec = md.load(traj, top=top)
-    trajec = trajec.remove_solvent()
-    trajec = trajec[start:stop:stride]
-    phi = md.compute_phi(trajec)
-    phi = phi[1]  # 0:indices, 1:phi angles
-    print(phi.shape)
-    psi = md.compute_psi(trajec)
-    psi = psi[1]  # 0:indices, 1:phi angles
-    print(psi.shape)
-    phi_psi = np.array([list(x) for x in zip(phi, psi)])
-    print(phi_psi.shape)
-    phi_psi = phi_psi.reshape((phi_psi.shape[0], phi_psi.shape[1] * phi_psi.shape[2]))
-    print(phi_psi.shape)
-    np.savetxt(phi_psi_txt, phi_psi)
-
-def create_heavy_atom_xyz_chignolin(traj, heavy_atoms_array, start=0, stop=100000, stride=1):
-    # Download the reference PDB to be used when the .nc file is without solvent. Otherwise, use the prmtop file
-    ref_pdb = "chignolin.pdb"
-    command = "curl -O https://files.rcsb.org/download/1UAO.pdb1.gz"
-    os.system(command)
-    command = "gunzip 1UAO.pdb1.gz"
-    os.system(command)
-    command = "mv 1UAO.pdb1 " + ref_pdb
-    os.system(command)
-    topology = md.load(ref_pdb).topology
-    print(topology)
-    df, bonds = topology.to_dataframe()
-    heavy_indices = list(df[df["element"] != "H"].index)
-    print(heavy_indices)
-    trajec = md.load(traj, top=ref_pdb)
-    trajec = trajec[start:stop:stride]
-    print(trajec)
-    trajec = trajec.atom_slice(atom_indices=heavy_indices)
-    print(trajec)
-    trajec_xyz = trajec.xyz * 10
-    print(trajec_xyz.shape)
-    trajec_xyz = trajec_xyz.reshape((trajec.xyz.shape[0], trajec.xyz.shape[1] * trajec.xyz.shape[2]))
-    print(trajec_xyz.shape)
-    np.savetxt(heavy_atoms_array, trajec_xyz)
-
-def create_rmsd_rg_chignolin(traj, rmsd_rg_txt, start = 0, stop = 100000, stride = 1):
-    ref_pdb = "chignolin.pdb"
-    command = "curl -O https://files.rcsb.org/download/1UAO.pdb1.gz"
-    os.system(command)
-    command = "gunzip 1UAO.pdb1.gz"
-    os.system(command)
-    command = "mv 1UAO.pdb1 " + ref_pdb
-    os.system(command)
-    trajec = md.load(traj, top=ref_pdb)
-    trajec = trajec.remove_solvent()
-    trajec = trajec[start:stop:stride]
-    print(trajec)
-    rmsd = md.rmsd(trajec, trajec, 0)
-    print(rmsd.shape)
-    rg = md.compute_rg(trajec)
-    print(rg.shape)
-    rmsd_rg = np.array([list(x) for x in zip(list(rmsd), list(rg))])
-    print(rmsd_rg.shape)
-    np.savetxt(rmsd_rg_txt, rmsd_rg)
-
-def create_rmsd_rg_chignolin_top(traj, top, rmsd_rg_txt, start = 0, stop = 100000, stride = 1):
-    trajec = md.load(traj, top = top)
-    trajec = trajec.remove_solvent()
-    trajec = trajec[start:stop:stride]
-    print(trajec)
-    rmsd = md.rmsd(trajec, trajec, 0)
-    print(rmsd.shape)
-    rg = md.compute_rg(trajec)
-    print(rg.shape)
-    rmsd_rg = np.array([list(x) for x in zip(list(rmsd), list(rg))])
-    print(rmsd_rg.shape)
-    np.savetxt(rmsd_rg_txt, rmsd_rg)
-
-def fix_cap_remove_nme(pdb_file):
-
-    """
-    Removes the H atoms of the capped NME residue.
-
-    """
-
-    remove_words = [
-        "H1  NME",
-        "H2  NME",
-        "H3  NME",
-        "H31 NME",
-        "H32 NME",
-        "H33 NME",
-    ]
-    with open(pdb_file) as oldfile, open("intermediate.pdb", "w") as newfile:
-        for line in oldfile:
-            if not any(word in line for word in remove_words):
-                newfile.write(line)
-    command = "rm -rf " + pdb_file
-    os.system(command)
-    command = "mv intermediate.pdb " + pdb_file
-    os.system(command)
-
-def add_vectors(traj, top, inpcrd_file):
-    trajec = md.load_frame(traj, top=top, index=0)
-    x = trajec.openmm_boxes(frame=0)
-    x = str(x)
-    x = x.replace("Vec3", "")
-    x = re.findall("\d*\.?\d+", x)
-    for i in range(0, len(x)):
-        x[i] = float(x[i])
-    x = tuple(x)
-    n = int(len(x) / 3)
-    x = [x[i * n : (i + 1) * n] for i in range((len(x) + n - 1) // n)]
-    vectors = ((x[0][0]) * 10, (x[1][1]) * 10, (x[2][2]) * 10)
-    vectors = (round(vectors[0], 7), round(vectors[1], 7), round(vectors[2], 7))
-    new_vectors = []
-    for i in vectors:
-        target_len = 10
-        if len(str(i)) < 10:
-            i = str(i) + (10 - len(str(i))) * "0"
-        else:
-            i = str(i)
-        new_vectors.append(i)
-    new_vectors = tuple(new_vectors)
-    last_line = ( "  " + new_vectors[0] + "  " + new_vectors[1] + "  " + new_vectors[2] + "  90.0000000" + "  90.0000000"  + "  90.0000000")
-    with open(inpcrd_file, "a+") as f:
-        f.write(last_line)
-
-################ VAMPnet Functions ################
-
-################ K-Means Clustering #############
-
-def tsne_visualize(traj_data):
-    tsne = TSNE(n_components=2, perplexity=100)
-    tsne_dims = tsne.fit_transform(traj_data)
-    sns.scatterplot(x=tsne_dims[:, 0], y=tsne_dims[:, 1], alpha=0.5)
-    plt.title("2-D TSNE")
-    plt.show()
-    return tsne_dims
-
-
-def experiment_with_k_means(traj_data, tsne_dims):
-    k_range = np.arange(2, 9)
-    # training k-means for 7 different values of num_clusters or k (kernels)
-    trials_per_k = 5
-    total_k = k_range.shape[0]
-    score = np.zeros(total_k)
-    for k_num in range(0, total_k):
-        kmeans = KMeans(n_clusters=k_range[k_num])
-        trial_score = np.zeros(trials_per_k)
-        for trial in range(0, trials_per_k):
-            labels_kmeans = kmeans.fit_predict(traj_data)
-            trial_score[trial] = metrics.davies_bouldin_score(
-                traj_data, labels_kmeans
-            )
-            # For clustering Davies Bouldin score or silhouette score is a good metric
-        score[k_num] = np.median(trial_score)
-        # Visualising the clusters using tsne fitted dimensions from the previous block
-        sns.scatterplot(
-            x=tsne_dims[:, 0],
-            y=tsne_dims[:, 1],
-            hue=labels_kmeans,
-            palette="bright",
-            alpha=0.5,
-        )
-        plt.title("2-D TSNE for K-Means with k = " + str(k_range[k_num]))
-        plt.show()
-        print("For %d clusters, score is %f " % (k_num + 2, score[k_num]))
-    max_score = np.max(score)
-    best_num_clusters = np.where(score == max_score)
-    plt.plot(k_range, score)
-    plt.title("Clustering score")
-    plt.show()
-    return best_num_clusters
-
-
-def gmm(traj_data, best_num_clusters):
-    num_clusters = best_num_clusters[0][0] + 2
-    gm = GaussianMixture(n_components=num_clusters, random_state=0).fit(
-        traj_data
-    )
-    posterior_probabs = gm.predict_proba(traj_data)
-    print(posterior_probabs.shape)
-    return posterior_probabs
-
-
-def get_clustered_indices(traj_data, posterior_probabs, num_traj_indices):
-
-    """
-    Returns the indices of the trajectory points that are highly
-    probable to belong to the smallest cluster (slowest state)
-
-    """
-    labels_final = np.argmax(posterior_probabs, axis=1)
-    num_trajs = np.bincount(labels_final)
-    slow_state_idx = np.argmin(num_trajs)
-    num_clusters = posterior_probabs.shape[1]
-    traj_idcs = [
-        np.where(
-            labels_final
-            == np.multiply(np.ones_like(labels_final), slow_state_idx)
-        )
-    ]
-    probs = np.zeros((len(traj_idcs[0][0])))
-    for i, traj in enumerate(traj_idcs[0][0]):
-        probs[i] = posterior_probabs[traj, slow_state_idx]
-    probs_sorted = np.argsort(probs)
-    return probs_sorted[:num_traj_indices], labels_final
-
-
-def plot_RC(dihedral_data, labels):
-    fig, ax = plt.subplots()
-    for i in range(num_clusters):
-        coor_train = np.where(labels == i)[0]
-        ax.scatter(
-            dihedral[coor_train, 0], dihedral[coor_train, 1], s=5, label=i
-        )
-    ax.legend()
-    plt.axes = [[-np.pi, np.pi], [-np.pi, np.pi]]
-    plt.show()
-
-
-def print_states_pie_chart():
-    coors = []
-    maxi = np.max(pred_ord, axis=1)
-    for i in range(output_size):
-        coors.append(len(np.where(pred_ord[:, i] == maxi)[0]))
-    fig1, ax1 = plt.subplots()
-    ax1.pie(np.array(coors), autopct="%1.2f%%", startangle=90)
-    ax1.axis("equal")
-    # Equal aspect ratio ensures that pie is drawn as a circle.
-    print("States population: " + str(np.array(coors) / len(maxi) * 100) + "%")
-    plt.show()
-
-
-def pdbs_from_indices(indices, traj_file, ref_pdb):
-    os.system("rm -rf westpa_dir")
-    os.system("mkdir westpa_dir")
-    for i in indices:
-        traj_frame = md.load_frame(filename=traj_file, top=ref_pdb, index=i)
-        pdb_name = str(i) + ".pdb"
-        pdb_path = os.path.join(os.getcwd(), "westpa_dir/" + pdb_name)
-        traj_frame.save_pdb(pdb_path, force_overwrite=True)
-
-################ K-Means Clustering #############
-
-################ VAMPnet ################
+################ VAMPNet ################
 
 class VampnetTools(object):
 
@@ -1948,8 +901,6 @@ class VampnetTools(object):
         # cross-covariance matrix
         matrices = self._build_vamp_matrices(x, y, batch_size)
         cov_00_ir, cov_11_ir, cov_01 = matrices
-
-################ VAMPnet ################
 
         # Calculate the VAMP matrix
         vamp_matrix = tf.matmul(cov_00_ir, tf.matmul(cov_01, cov_11_ir))
@@ -2523,6 +1474,8 @@ class VampnetTools(object):
 
         return auto_cov_inv_root, cross_cov
 
+################ VAMPnet ################
+
 ################ Experimental Functions on VAMPnet ################
 
     def _loss_VAMP_sym(self, y_true, y_pred):
@@ -2704,5 +1657,3 @@ class VampnetTools(object):
         return koopman_op
 
 ################ Experimental Functions on VAMPnet ################
-
-################ VAMPnet ################

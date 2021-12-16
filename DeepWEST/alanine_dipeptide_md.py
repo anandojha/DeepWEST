@@ -143,7 +143,6 @@ def prepare_alanine_dipeptide():
             """
     source leaprc.protein.ff14SB
     source leaprc.water.tip3p
-    set default FlexibleWater on
     set default PBRadii mbondi2
     pdb = loadpdb system.pdb
     solvateBox pdb TIP3PBOX 15
@@ -595,7 +594,6 @@ def create_alanine_dipeptide_md_structures():
             """
     source leaprc.protein.ff14SB
     source leaprc.water.tip3p
-    set default FlexibleWater on
     set default PBRadii mbondi2
     pdb = loadpdb system_nvt_output_last_frame.pdb
     saveamberparm pdb system_final.prmtop system_final.inpcrd

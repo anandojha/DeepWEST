@@ -15,8 +15,8 @@ import DeepWEST
 DeepWEST.get_chignolin_ref_pdb()
 # Load Data ( .prmtop and .nc should be present)
 data_dir = os.getcwd()
-traj_file = os.path.join(data_dir, "chignolin_500ns_500000steps.nc")
-top = os.path.join(data_dir, "chignolin.prmtop")
+traj_file = os.path.join(data_dir, "system_final.nc")
+top = os.path.join(data_dir, "system_final.prmtop")
 heavy_atoms_file = os.path.join("heavy_atoms_md_chignolin.txt")
 rmsd_rg_file = os.path.join("rmsd_rg_md_chignolin.txt")
 # Define Parameters and Hyperparameters
@@ -244,11 +244,13 @@ cbar.ax.yaxis.set_tick_params(labelsize=40)
 fig.savefig("state_viz_chignolin.jpg", bbox_inches="tight", dpi = 250)
 plt.close()
 # Markov Model Estimation
+"""
 # Estimate the implied timescales
 max_tau = 200
 lag = np.arange(1, max_tau, 1)
 its = vamp.get_its(pred_ord, lag)
 vamp.plot_its(its, lag, fig = "its_chignolin.jpg")
+"""
 # Chapman-Kolmogorov test for the estimated koopman operator
 steps = 8
 tau_msm = 35
