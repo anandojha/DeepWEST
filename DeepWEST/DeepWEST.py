@@ -268,6 +268,15 @@ def run_min_alanine_dipeptide_westpa_dir(traj, top, maxcyc = 10000, cuda = "avai
 
 ################ Chignolin Functions ################
 
+def get_chignolin_ref_pdb():
+    ref_pdb = "system_final.pdb"
+    command = "curl -O https://files.rcsb.org/download/1UAO.pdb1.gz"
+    os.system(command)
+    command = "gunzip 1UAO.pdb1.gz"
+    os.system(command)
+    command = "mv 1UAO.pdb1 " + ref_pdb
+    os.system(command)
+
 def create_heavy_atom_xyz_chignolin(traj, heavy_atoms_array, start=0, stop=100000, stride=1):
     # Download the reference PDB to be used when the .nc file is without solvent. Otherwise, use the prmtop file
     ref_pdb = "chignolin.pdb"
