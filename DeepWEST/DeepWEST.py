@@ -424,10 +424,54 @@ def fix_cap_replace_arg(pdb_file):
     fin = open(pdb_file, "rt")
     data = fin.read()
     data = data.replace("H   ARG A   1", "H1  ARG A   1")
+    data = data.replace("H   ARG A   0 ","H1  ARG A   0")
     fin.close()
     fin = open(pdb_file, "wt")
     fin.write(data)
     fin.close()
+
+def fix_resid_replace_cys(pdb_file):
+    fin = open(pdb_file, "rt")
+    data = fin.read()
+    data = data.replace("CYS", "CYX")
+    fin.close()
+    fin = open(pdb_file, "wt")
+    fin.write(data)
+    fin.close()
+
+def add_ter_bpti(pdb_file):
+    f1 = open(pdb_file, "r")
+    lines = f1.readlines()
+    new_lines = []
+    for i in lines:
+        if "OXT" in i :
+            i  = i  + "TER" + "\n"
+        else:
+            i  = i 
+        new_lines.append(i)
+    with open(pdb_file, 'w') as f:
+        for i in new_lines:
+            f.write(i)
+
+def remove_conect_bpti(pdb_file):
+    f1 = open(pdb_file, "r")
+    lines = f1.readlines()
+    new_lines = []
+    for i in lines:
+        if not i.startswith('CONECT'):
+            new_lines.append(i)
+    with open(pdb_file, 'w') as f:
+        for i in new_lines:
+            f.write(i)
+    f1 = open(pdb_file, "r")
+    lines = f1.readlines()
+    new_lines = []
+    for i in lines:
+        if not i.startswith('END'):
+            new_lines.append(i)
+    with open(pdb_file, 'w') as f:
+        for i in new_lines:
+            f.write(i)
 
 def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
     files = os.listdir(".")
@@ -440,6 +484,9 @@ def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
     for i in pdb_list:
         pdb_file = i
         fix_cap_replace_arg(pdb_file)
+        fix_resid_replace_cys(pdb_file)
+        add_ter_bpti(pdb_file)
+        remove_conect_bpti(pdb_file)
     # Saving inpcrd file from mdtraj saved pdb files
     for i in pdb_list:
         pdb_file = i
@@ -447,9 +494,13 @@ def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
         line_2 = "source leaprc.water.tip4pew"
         line_3 = "set default FlexibleWater on"
         line_4 = "set default PBRadii mbondi2"
-        line_5 = "pdb = loadpdb " + pdb_file
-        line_6 = "saveamberparm pdb " + pdb_file[:-4] + ".prmtop " + pdb_file[:-4] + ".inpcrd"
-        line_7 = "quit"
+        line_5 = "HOH = TP4"
+        line_6 = "pdb = loadpdb " + pdb_file
+        line_7 = "bond pdb.54.SG pdb.4.SG"
+        line_8 = "bond pdb.29.SG pdb.50.SG"
+        line_9 = "bond pdb.13.SG pdb.37.SG"
+        line_10 = "saveamberparm pdb " + pdb_file[:-4] + ".prmtop " + pdb_file[:-4] + ".inpcrd"
+        line_11 = "quit"
         with open("input.leap", "w") as f:
             f.write("    " + "\n")
             f.write(line_1 + "\n")
@@ -459,6 +510,10 @@ def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
             f.write(line_5 + "\n")
             f.write(line_6 + "\n")
             f.write(line_7 + "\n")
+            f.write(line_8 + "\n")
+            f.write(line_9 + "\n")
+            f.write(line_10 + "\n")
+            f.write(line_11 + "\n")
         command = "tleap -f input.leap"
         os.system(command)
         command = "rm -rf input.leap"
@@ -469,8 +524,8 @@ def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
     for x in files:
         if fnmatch.fnmatch(x, file_to_find):
             inpcrd_list.append(x)
-    #for i in inpcrd_list:
-        #add_vectors(traj=traj, top=top, inpcrd_file=i)
+    for i in inpcrd_list:
+        add_vectors(traj=traj, top=top, inpcrd_file=i)
     # Creating Amber MD input file
     with open("md.in", "w") as f:
         f.write("Run minimization followed by saving rst file" + "\n")
