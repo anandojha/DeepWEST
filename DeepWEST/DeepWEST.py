@@ -473,6 +473,37 @@ def remove_conect_bpti(pdb_file):
         for i in new_lines:
             f.write(i)
 
+def rearrange_line_insert_space(line):
+    l1 = line[0:12]
+    l1 = l1[:-1] + " " 
+    l2 = line[12:24]
+    l2 = l2[:-1] + " " 
+    l3 = line[24:36]
+    l3 = l3[:-1] + " " 
+    l4 = line[36:48]
+    l4 = l4[:-1] + " " 
+    l5 = line[48:60]
+    l5 = l5[:-1] + " " 
+    l6 = line [60:72]
+    l6 = l6[:-1] + " " 
+    line_to_replace = l1+l2+l3+l4+l5+l6
+    return(line_to_replace)
+
+def rewrite_correct_inpcrd(inpcrd_file):
+    with open(inpcrd_file) as file:
+        lines = file.readlines()
+        lines = [line.rstrip() for line in lines]
+    new_lines = []
+    for i in range(len(lines)):
+        if i < 2:
+            lines[i] = lines[i] 
+        else:
+            lines[i] = rearrange_line_insert_space(lines[i])
+        new_lines.append(lines[i])
+    with open(inpcrd_file, "w") as f:
+        for i in new_lines:
+            f.write(i + "\n")
+
 def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
     files = os.listdir(".")
     file_to_find = "*.pdb"
@@ -526,6 +557,7 @@ def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
             inpcrd_list.append(x)
     for i in inpcrd_list:
         add_vectors(traj=traj, top=top, inpcrd_file=i)
+        rewrite_correct_inpcrd(inpcrd_file=i)
     # Creating Amber MD input file
     with open("md.in", "w") as f:
         f.write("Run minimization followed by saving rst file" + "\n")

@@ -465,7 +465,7 @@ def add_vec_prmtop():
 
 def explicit_md_input_bpti(imin = 0, irest = 0, ntx = 1, nstlim = 250000000, dt = 0.002, ntc = 2, 
                            ntf = 2, tol = 0.000001, iwrap = 1, ntb = 1, cut = 8.0, ntt = 3, 
-                           temp0 = 300.0, gamma_ln = 1.0, ntpr = 5000, ntwx = 5000, ntwr = 5000,
+                           temp0 = 300.0, gamma_ln = 1.0, ntpr = 2500, ntwx = 2500, ntwr = 2500,
                            ntxo = 2, ioutfm = 1, ig = -1, ntwprt = 0, md_input_file = "md.in"):
     cwd = os.getcwd()
     target_dir = cwd + "/" + "bpti_md"
