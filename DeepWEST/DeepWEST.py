@@ -169,6 +169,12 @@ def add_vectors(traj, top, inpcrd_file):
         f.write(last_line)
 
 def del_failed_files():
+    files = os.listdir(".")
+    file_to_find = "*.out"
+    out_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            out_list.append(x)
     to_delete = []
     for i in out_list:
         with open(i) as file:
