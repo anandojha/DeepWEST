@@ -472,7 +472,6 @@ def remove_conect_bpti(pdb_file):
     with open(pdb_file, 'w') as f:
         for i in new_lines:
             f.write(i)
-
 def rearrange_line_insert_space(line):
     l1 = line[0:12]
     l1 = l1[:-1] + " " 
@@ -489,6 +488,17 @@ def rearrange_line_insert_space(line):
     line_to_replace = l1+l2+l3+l4+l5+l6
     return(line_to_replace)
 
+def insert_space_lines_greater_72(line):
+    sep_num = re.findall("[^a-zA-Z:][-+]?\d+[\.]?\d*", line)
+    sep_num_str = []
+    for j in sep_num:
+        j = float(j)
+        j = str(j)
+        j = j + (11 - len(j))* "0"
+        sep_num_str.append(j)
+    line_to_replace = " " + sep_num_str[0] + " " + sep_num_str[1] + " " + sep_num_str[2] + " " + sep_num_str[3] + " " +  sep_num_str[4] + " " + sep_num_str[5]
+    return(line_to_replace)
+
 def rewrite_correct_inpcrd(inpcrd_file):
     with open(inpcrd_file) as file:
         lines = file.readlines()
@@ -503,6 +513,21 @@ def rewrite_correct_inpcrd(inpcrd_file):
     with open(inpcrd_file, "w") as f:
         for i in new_lines:
             f.write(i + "\n")
+
+def rewrite_correct_inpcrd_greater_72(inpcrd_file):
+    with open(inpcrd_file) as file:
+        lines = file.readlines()
+        lines = [line.rstrip() for line in lines]
+    new_lines = []
+    for j in lines:
+        if len(j) <= 72:
+            j = j 
+        else:
+            j = insert_space_lines_greater_72(j)
+        new_lines.append(j)
+    with open(inpcrd_file, "w") as f:
+        for k in new_lines:
+            f.write(k + "\n")
 
 def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
     files = os.listdir(".")
@@ -557,6 +582,7 @@ def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
             inpcrd_list.append(x)
     for i in inpcrd_list:
         add_vectors(traj=traj, top=top, inpcrd_file=i)
+        rewrite_correct_inpcrd_greater_72(inpcrd_file=i)
         rewrite_correct_inpcrd(inpcrd_file=i)
     # Creating Amber MD input file
     with open("md.in", "w") as f:
