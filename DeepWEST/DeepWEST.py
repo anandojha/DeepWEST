@@ -168,6 +168,24 @@ def add_vectors(traj, top, inpcrd_file):
     with open(inpcrd_file, "a+") as f:
         f.write(last_line)
 
+def del_failed_files():
+    to_delete = []
+    for i in out_list:
+        with open(i) as file:
+            lines = file.readlines()
+            line = lines[-1]
+            if "Total wall time" not in line:
+                to_delete.append(i)
+    for i in to_delete:
+        command = "rm -rf " + i[:-4] + ".pdb"
+        os.system(command)
+        command = "rm -rf " + i[:-4] + ".prmtop"
+        os.system(command)
+        command = "rm -rf " + i[:-4] + ".out"
+        os.system(command)
+        command = "rm -rf " + i[:-4] + ".inpcrd"
+        os.system(command)
+
 ################ Common Functions ################
 
 ################ Alanine Dipeptide Functions ################
@@ -582,8 +600,8 @@ def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
             inpcrd_list.append(x)
     for i in inpcrd_list:
         add_vectors(traj=traj, top=top, inpcrd_file=i)
-        rewrite_correct_inpcrd_greater_72(inpcrd_file=i)
-        rewrite_correct_inpcrd(inpcrd_file=i)
+        #rewrite_correct_inpcrd_greater_72(inpcrd_file=i)
+        #rewrite_correct_inpcrd(inpcrd_file=i)
     # Creating Amber MD input file
     with open("md.in", "w") as f:
         f.write("Run minimization followed by saving rst file" + "\n")
@@ -603,6 +621,8 @@ def run_min_bpti_westpa_dir(traj, top, maxcyc = 10000, cuda = "available"):
     # Deleting md.in file
     command = "rm -rf md.in __pycache__  leap.log mdinfo"
     os.system(command)
+    # Deleting failed files
+    del_failed_files()
 
 ################ BPTI Functions ################
 
