@@ -746,11 +746,18 @@ def create_biased_westpa_filetree(state_indices, num_states):
             inpcrd_list.append(x)
     prob_list = []
     print("Total number of inpcrd files: ", len(inpcrd_list))
+    final_inpcrd_state_indices = [[] for i in range(num_states)]
     for inpcrd in inpcrd_list:
         idx = inpcrd.split('.')[0]
         for i in range(num_states):
             if int(idx) in state_indices[i]:
-                prob = round((probab[i]) / (len(state_indices[i])), 10)
+                final_inpcrd_state_indices[i].append(int(idx))
+                break
+    for inpcrd in inpcrd_list:
+        idx = inpcrd.split('.')[0]
+        for i in range(num_states):
+            if int(idx) in state_indices[i]:
+                prob = round((probab[i]) / (len(final_inpcrd_state_indices[i])), 10)
                 prob_list.append(prob)
     print(prob_list)
     print("Total Probability with inpcrd files:", sum(prob_list))
