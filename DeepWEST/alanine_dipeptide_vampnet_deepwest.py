@@ -23,11 +23,11 @@ rmsd_rg_file = os.path.join("rmsd_rg_md_alanine_dipeptide.txt")
 # Define Hyperparameters and parameters
 attempts = 5 #10
 start = 0 #0
-stop = 250000 #250000
+stop = 500000 #250000
 stride = 1 #1
 no_frames = 10 # Number of frames to be selected from each bin in the output state 
 output_size = 3 # How many output states the network has (max = 6)
-tau = 60 # Tau, how much is the timeshift of the two datasets
+tau = 8 # Tau, how much is the timeshift of the two datasets
 batch_size = 1000 # Batch size for Stochastic Gradient descent
 train_ratio = 0.9 # Which trajectory points percentage is used as training
 network_depth = 8 # How many hidden layers the network has
@@ -173,7 +173,7 @@ plt.plot(tm1, label = 'training VAMP')
 plt.plot(tm2, label = 'training VAMP2')
 plt.plot(-tm3, label = 'training loss')
 plt.legend()
-plt.savefig("rates_alanine_dipeptide.jpg", bbox_inches="tight", dpi = 500)
+plt.savefig("rates_alanine_dipeptide.jpg", bbox_inches="tight", dpi = 1000)
 plt.show(block=False)
 plt.pause(1)
 plt.close()
@@ -197,19 +197,105 @@ def print_states_pie_chart():
     ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
     print('States population: '+ str(np.array(coors)/len(maxi)*100)+'%')
     np.savetxt('population.txt', coors, delimiter=',')
-    plt.savefig("population_alanine_dipeptide.jpg", bbox_inches="tight", dpi = 500)
+    plt.savefig("population_alanine_dipeptide.jpg", bbox_inches="tight", dpi = 1000)
     plt.show(block=False)
-    plt.pause(1)
+    plt.pause(3)
     plt.close()
 print_states_pie_chart()
+
+# Visualize how the states are placed on the Ramachandran plot  
+maxi_train = np.max(pred_ord, axis= 1)
+coor_train = np.zeros_like(pred_ord)
+for i in range(0, output_size-2):
+    coor_train = np.where(pred_ord[:,i]== maxi_train)[0]
+    plt.scatter(dihedral_init[coor_train,0], dihedral_init[coor_train,1], s=1, color="red")
+    plt.xlabel(r'$\phi$ (radian)')
+    plt.ylabel(r'$\psi$ (radian)')
+    plt.xlim([-np.pi, np.pi])
+    plt.ylim([-np.pi, np.pi])
+    theta = np.arange(-np.pi,np.pi+np.pi/4, step=(np.pi/4))
+    plt.xticks(theta,['-π','-3π/4','-π/2','-π/4','0','π/4','π/2','3π/4','π'])
+    plt.yticks(theta,['-π','-3π/4','-π/2','-π/4','0','π/4','π/2','3π/4','π'])
+    plt.savefig("dist_alanine_dipeptide_0.jpg", dpi = 1000)
+    plt.show(block=False)
+    plt.pause(3)
+    plt.close()
+
+for i in range(1, output_size-1):
+    coor_train = np.where(pred_ord[:,i]== maxi_train)[0]
+    plt.scatter(dihedral_init[coor_train,0], dihedral_init[coor_train,1], s=1, color="green")
+    plt.xlabel(r'$\phi$ (radian)')
+    plt.ylabel(r'$\psi$ (radian)')
+    plt.xlim([-np.pi, np.pi])
+    plt.ylim([-np.pi, np.pi])
+    theta = np.arange(-np.pi,np.pi+np.pi/4, step=(np.pi/4))
+    plt.xticks(theta,['-π','-3π/4','-π/2','-π/4','0','π/4','π/2','3π/4','π'])
+    plt.yticks(theta,['-π','-3π/4','-π/2','-π/4','0','π/4','π/2','3π/4','π'])
+    plt.savefig("dist_alanine_dipeptide_1.jpg", dpi = 1000)
+    plt.show(block=False)
+    plt.pause(3)
+    plt.close()
+
+for i in range(2, output_size):
+    coor_train = np.where(pred_ord[:,i]== maxi_train)[0]
+    plt.scatter(dihedral_init[coor_train,0], dihedral_init[coor_train,1], s=1, color="blue")
+    plt.xlabel(r'$\phi$ (radian)')
+    plt.ylabel(r'$\psi$ (radian)')
+    plt.xlim([-np.pi, np.pi])
+    plt.ylim([-np.pi, np.pi])
+    theta = np.arange(-np.pi,np.pi+np.pi/4, step=(np.pi/4))
+    plt.xticks(theta,['-π','-3π/4','-π/2','-π/4','0','π/4','π/2','3π/4','π'])
+    plt.yticks(theta,['-π','-3π/4','-π/2','-π/4','0','π/4','π/2','3π/4','π'])
+    plt.savefig("dist_alanine_dipeptide_2.jpg", dpi = 1000)
+    plt.show(block=False)
+    plt.pause(3)
+    plt.close()
+
+for i in range(0, output_size-2):
+    coor_train = np.where(pred_ord[:,i]== maxi_train)[0]
+    plt.scatter(dihedral_init[coor_train,0], dihedral_init[coor_train,1], s=1, color="red")
+    plt.xlabel(r'$\phi$ (radian)')
+    plt.ylabel(r'$\psi$ (radian)')
+    plt.xlim([-np.pi, np.pi])
+    plt.ylim([-np.pi, np.pi])
+    theta = np.arange(-np.pi,np.pi+np.pi/4, step=(np.pi/4))
+    plt.xticks(theta,['-π','-3π/4','-π/2','-π/4','0','π/4','π/2','3π/4','π'])
+    plt.yticks(theta,['-π','-3π/4','-π/2','-π/4','0','π/4','π/2','3π/4','π'])
+for i in range(1, output_size-1):
+    coor_train = np.where(pred_ord[:,i]== maxi_train)[0]
+    plt.scatter(dihedral_init[coor_train,0], dihedral_init[coor_train,1], s=1, color="green")
+    plt.xlabel(r'$\phi$ (radian)')
+    plt.ylabel(r'$\psi$ (radian)')
+    plt.xlim([-np.pi, np.pi])
+    plt.ylim([-np.pi, np.pi])
+    theta = np.arange(-np.pi,np.pi+np.pi/4, step=(np.pi/4))
+    plt.xticks(theta,['-π','-3π/4','-π/2','-π/4','0','π/4','π/2','3π/4','π'])
+    plt.yticks(theta,['-π','-3π/4','-π/2','-π/4','0','π/4','π/2','3π/4','π'])
+for i in range(2, output_size):
+    coor_train = np.where(pred_ord[:,i]== maxi_train)[0]
+    plt.scatter(dihedral_init[coor_train,0], dihedral_init[coor_train,1], s=1, color="blue")
+    plt.xlabel(r'$\phi$ (radian)')
+    plt.ylabel(r'$\psi$ (radian)')
+    plt.xlim([-np.pi, np.pi])
+    plt.ylim([-np.pi, np.pi])
+    theta = np.arange(-np.pi,np.pi+np.pi/4, step=(np.pi/4))
+    plt.xticks(theta,['-π','-3π/4','-π/2','-π/4','0','π/4','π/2','3π/4','π'])
+    plt.yticks(theta,['-π','-3π/4','-π/2','-π/4','0','π/4','π/2','3π/4','π'])
+    plt.savefig("dist_alanine_dipeptide.jpg", dpi = 1000)
+    plt.show(block=False)
+    plt.pause(3)
+    plt.close()
+
+"""
 # Visualize how the states are placed on the Ramachandran plot
 maxi_train = np.max(pred_ord, axis= 1)
 coor_train = np.zeros_like(pred_ord)
 for i in range(output_size):
     coor_train = np.where(pred_ord[:,i]== maxi_train)[0]
     plt.scatter(dihedral_init[coor_train,0], dihedral_init[coor_train,1], s=5)
-    plt.savefig("dist_alanine_dipeptide.jpg", dpi = 500)
+    plt.savefig("dist_alanine_dipeptide.jpg", dpi = 1000)
     plt.axes = [[-np.pi, np.pi],[-np.pi, np.pi]]
+"""
 # For each state, visualize the probabilities the different trajectory points have to belong to it
 fig = plt.figure(figsize=(25,25))
 gs1 = gridspec.GridSpec(2, int(np.ceil(output_size/2)))
@@ -265,7 +351,7 @@ predicted, estimated = vamp.get_ck_test(pred_ord, steps, tau_msm)
 # Saving the frame indices to a txt file
 indices_list = [idxs[0].tolist() for idxs in indexes]
 print("Saving indices")
-sorted_indices = DeepWEST.get_pdbs_from_clusters(indices = indices_list, rmsd_rg=rmsd_rg_shuffle, num_pdbs = no_frames)
+sorted_indices = DeepWEST.get_pdbs_from_clusters(indices = indices_list, rmsd_rg=dihedral_shuffle, num_pdbs = no_frames)
 print("Saved indices")
 index_for_we = list(itertools.chain.from_iterable(sorted_indices))
 print(len(index_for_we))
@@ -274,6 +360,7 @@ current_cwd = os.getcwd()
 westpa_cwd = current_cwd + "/" + "westpa_dir" # westpa directory pwd 
 indices_vamp = np.loadtxt("indices_vamp_alanine_dipeptide.txt")
 indices_vamp = [int(i) for i in indices_vamp]
+print(indices_vamp)
 DeepWEST.create_westpa_dir(traj_file = traj_file, top = top, indices = indices_vamp, shuffled_indices=shuff_indexes)
 os.chdir(westpa_cwd)
 DeepWEST.run_min_alanine_dipeptide_westpa_dir(traj = traj_file, top = top, maxcyc = 10000, cuda = "available")
