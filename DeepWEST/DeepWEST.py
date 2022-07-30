@@ -343,6 +343,83 @@ def create_phi_psi_implicit_chignolin(traj, top, phi_psi_txt, psi_index, phi_ind
     print(phi_psi.shape)
     np.savetxt(phi_psi_txt, phi_psi)
 
+def create_dihed1_dihed2_chignolin(traj, dihed1_dihed2_txt, start = 0, stop = 250000, stride = 1):
+    ref_pdb = "chignolin.pdb"
+    command = "curl -O https://files.rcsb.org/download/1UAO.pdb1.gz"
+    os.system(command)
+    command = "gunzip 1UAO.pdb1.gz"
+    os.system(command)
+    command = "mv 1UAO.pdb1 " + ref_pdb
+    os.system(command)
+    trajec = md.load(traj, top=ref_pdb)
+    trajec = trajec.remove_solvent()
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    dihed1 = md.compute_dihedrals(trajec, indices=[[32,52,58,73]])
+    #ASP(3), PRO(4), GLU(5),THR(6)  (32, 52, 58, 73)
+    dihed1 = dihed1.flatten()
+    print(dihed1.shape)
+    dihed2 = md.compute_dihedrals(trajec, indices=[[73,87,94,108]])
+    # GLU(5), THR(6), GLY(7), THR(8) (58, 73, 87, 94)
+    # THR(6), GLY(7), THR(8), TRP(9) (73, 87, 94, 108)
+    dihed2 = dihed2.flatten()
+    print(dihed2.shape)
+    dihed1_dihed2 = np.array([list(x) for x in zip(list(dihed1), list(dihed2))])
+    print(dihed1_dihed2.shape)
+    np.savetxt(dihed1_dihed2_txt, dihed1_dihed2)
+
+def create_dihed1_dihed2_sin_chignolin(traj, dihed1_dihed2_txt, start = 0, stop = 250000, stride = 1):
+    ref_pdb = "chignolin.pdb"
+    command = "curl -O https://files.rcsb.org/download/1UAO.pdb1.gz"
+    os.system(command)
+    command = "gunzip 1UAO.pdb1.gz"
+    os.system(command)
+    command = "mv 1UAO.pdb1 " + ref_pdb
+    os.system(command)
+    trajec = md.load(traj, top=ref_pdb)
+    trajec = trajec.remove_solvent()
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    dihed1 = md.compute_dihedrals(trajec, indices=[[32,52,58,73]])
+    dihed1 = dihed1.flatten()
+    dihed_1_sin = []
+    for i in dihed1:
+        dihed_1_sin.append(sin(i))
+    dihed2 = md.compute_dihedrals(trajec, indices=[[73,87,94,108]])
+    dihed2 = dihed2.flatten()
+    dihed_2_sin = []
+    for i in dihed2:
+        dihed_2_sin.append(sin(i))
+    dihed1_dihed2_sin = np.array([list(x) for x in zip(list(dihed_1_sin), list(dihed_2_sin))])
+    print(dihed1_dihed2_sin.shape)
+    np.savetxt(dihed1_dihed2_txt, dihed1_dihed2_sin)
+
+def create_dihed1_dihed2_cos_chignolin(traj, dihed1_dihed2_txt, start = 0, stop = 250000, stride = 1):
+    ref_pdb = "chignolin.pdb"
+    command = "curl -O https://files.rcsb.org/download/1UAO.pdb1.gz"
+    os.system(command)
+    command = "gunzip 1UAO.pdb1.gz"
+    os.system(command)
+    command = "mv 1UAO.pdb1 " + ref_pdb
+    os.system(command)
+    trajec = md.load(traj, top=ref_pdb)
+    trajec = trajec.remove_solvent()
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    dihed1 = md.compute_dihedrals(trajec, indices=[[32,52,58,73]])
+    dihed1 = dihed1.flatten()
+    dihed_1_cos = []
+    for i in dihed1:
+        dihed_1_cos.append(cos(i))
+    dihed2 = md.compute_dihedrals(trajec, indices=[[58,73,87,94]])
+    dihed2 = dihed2.flatten()
+    dihed_2_cos = []
+    for i in dihed2:
+        dihed_2_cos.append(cos(i))
+    dihed1_dihed2_cos = np.array([list(x) for x in zip(list(dihed_1_cos), list(dihed_2_cos))])
+    print(dihed1_dihed2_cos.shape)
+    np.savetxt(dihed1_dihed2_txt, dihed1_dihed2_cos)
+
 def create_heavy_atom_xyz_chignolin(traj, heavy_atoms_array, start=0, stop=250000, stride=1):
     # Download the reference PDB to be used when the .nc file is without solvent. Otherwise, use the prmtop file
     ref_pdb = "chignolin.pdb"
