@@ -1,15 +1,27 @@
+from keras.layers import BatchNormalization
+from keras.backend import clear_session
+import matplotlib.gridspec as gridspec
+from keras.layers import concatenate
+from keras.layers import Activation
+from keras.layers import Flatten
 import matplotlib.pyplot as plt
+from keras.models import Model
+from keras.layers import Dense
+from keras.layers import Input
+from keras import optimizers
 import tensorflow as tf
-import pandas as pd
 import mdtraj as md
+import pandas as pd
 import pytraj as pt
 import numpy as np
+import itertools
 import fnmatch
 import shutil
 import scipy
-import os
+import time
+import sys
 import re
-
+import os
 ################ Common Functions ################
 
 def create_bins(lower_bound, width, upper_bound):
@@ -82,7 +94,7 @@ def create_heavy_atom_xyz_solvent(traj, top, heavy_atoms_array, start=0, stop=10
     print(trajec_xyz.shape)
     np.savetxt(heavy_atoms_array, trajec_xyz)
 
-def create_heavy_atom_xyz_no_solvent(traj, top, heavy_atoms_array, start=0, stop=100000, stride=1):
+def create_heavy_atom_xyz_no_solvent(traj, top, heavy_atoms_array, start=0, stop=250000, stride=1):
     trajec = md.load(traj, top=top)
     trajec = md.Trajectory.superpose(trajec, reference = trajec[0])
     trajec = trajec[start:stop:stride]
@@ -191,6 +203,14 @@ def del_failed_files():
         os.system(command)
         command = "rm -rf " + i[:-4] + ".inpcrd"
         os.system(command)
+
+def folding_model_energy(rvec, rcut):
+    r"""computes the potential energy at point rvec"""
+    r = np.linalg.norm(rvec) - rcut
+    rr = r**2
+    if r < 0.0:
+        return -2.5 * rr
+    return 0.5 * (r - 2.0) * rr
 
 ################ Common Functions ################
 
@@ -301,7 +321,29 @@ def get_chignolin_ref_pdb():
     command = "mv 1UAO.pdb1 " + ref_pdb
     os.system(command)
 
-def create_heavy_atom_xyz_chignolin(traj, heavy_atoms_array, start=0, stop=100000, stride=1):
+def create_phi_psi_implicit_chignolin(traj, top, phi_psi_txt, psi_index, phi_index, start=0, stop=250000, stride=1):
+    trajec = md.load(traj, top=top)
+    trajec = trajec[start:stop:stride]
+    phi = md.compute_phi(trajec)
+    phi = md.compute_phi(trajec)
+    phi = phi[1] # 0:indices, 1:phi angles
+    print(phi.shape)
+    skip = phi.shape[1]
+    phi = phi.tolist()
+    phi = [x for xs in phi for x in xs]
+    phi = phi[phi_index::skip]    
+    psi = md.compute_psi(trajec)
+    psi = psi[1] # 0:indices, 1:psi angles
+    print(psi.shape)
+    skip = psi.shape[1]
+    psi = psi.tolist()
+    psi = [x for xs in psi for x in xs]
+    psi = psi[psi_index::skip]    
+    phi_psi = np.array([list(x) for x in zip(phi, psi)])
+    print(phi_psi.shape)
+    np.savetxt(phi_psi_txt, phi_psi)
+
+def create_heavy_atom_xyz_chignolin(traj, heavy_atoms_array, start=0, stop=250000, stride=1):
     # Download the reference PDB to be used when the .nc file is without solvent. Otherwise, use the prmtop file
     ref_pdb = "chignolin.pdb"
     command = "curl -O https://files.rcsb.org/download/1UAO.pdb1.gz"
@@ -326,7 +368,7 @@ def create_heavy_atom_xyz_chignolin(traj, heavy_atoms_array, start=0, stop=10000
     print(trajec_xyz.shape)
     np.savetxt(heavy_atoms_array, trajec_xyz)
 
-def create_rmsd_rg_chignolin(traj, rmsd_rg_txt, start = 0, stop = 100000, stride = 1):
+def create_rmsd_rg_chignolin(traj, rmsd_rg_txt, start = 0, stop = 250000, stride = 1):
     ref_pdb = "chignolin.pdb"
     command = "curl -O https://files.rcsb.org/download/1UAO.pdb1.gz"
     os.system(command)
@@ -346,7 +388,7 @@ def create_rmsd_rg_chignolin(traj, rmsd_rg_txt, start = 0, stop = 100000, stride
     print(rmsd_rg.shape)
     np.savetxt(rmsd_rg_txt, rmsd_rg)
 
-def create_rmsd_rg_chignolin_top(traj, top, rmsd_rg_txt, start = 0, stop = 100000, stride = 1):
+def create_rmsd_rg_chignolin_top(traj, top, rmsd_rg_txt, start = 0, stop = 250000, stride = 1):
     trajec = md.load(traj, top = top)
     trajec = trajec.remove_solvent()
     trajec = trajec[start:stop:stride]
@@ -358,6 +400,46 @@ def create_rmsd_rg_chignolin_top(traj, top, rmsd_rg_txt, start = 0, stop = 10000
     rmsd_rg = np.array([list(x) for x in zip(list(rmsd), list(rg))])
     print(rmsd_rg.shape)
     np.savetxt(rmsd_rg_txt, rmsd_rg)
+
+def create_distance_rg_chignolin_top(traj, top, distance_rg_txt, start = 0, stop = 250000, stride = 1):
+    trajec = md.load(traj, top = top)
+    trajec = trajec.remove_solvent()
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    dist = md.compute_contacts(trajec, contacts=[[0,9]], scheme='ca',ignore_nonprotein=True, periodic=True, soft_min=False, soft_min_beta=20)
+    dist_list = []
+    for i in dist[0]:
+        dist_list.append(i.tolist())
+    dists = [x for xs in dist_list for x in xs]   
+    print(len(dists))
+    rg = md.compute_rg(trajec)
+    print(rg.shape)
+    distance_rg = np.array([list(x) for x in zip(list(dists), list(rg))])
+    print(distance_rg.shape)
+    np.savetxt(distance_rg_txt, distance_rg)
+
+def create_internal_coordinates_chignolin(traj, top, contacts, internal_coords_file, pot_file, r_file, scheme="ca", step=1, start=0, stop=250000, stride=1): 
+    trajec = md.load(traj, top=top)
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    traj_contacts = md.compute_contacts(traj = trajec, contacts=contacts, scheme=scheme, ignore_nonprotein=True, periodic=True, soft_min=False, soft_min_beta=20)
+    traj_whole = traj_contacts[0]
+    r = np.linalg.norm(traj_whole, axis=-1)[::step]
+    print(traj_whole.shape)
+    print(r.shape)
+    pot = np.zeros_like(r)
+    for i in range(r.shape[0]):
+        pot[i] = folding_model_energy(r[i], 3)
+    plt.plot(r[::step], pot[::step], '.')
+    plt.xlabel('Steps')
+    plt.ylabel('Potential')
+    plt.savefig("r_pot.jpg", dpi = 500)
+    plt.show(block=False)
+    plt.pause(3)
+    plt.close()
+    np.savetxt(internal_coords_file, traj_whole)
+    np.savetxt(pot_file, pot)
+    np.savetxt(r_file, r)
 
 def run_min_chignolin_westpa_dir(traj, top, maxcyc = 200, cuda = "available"):
     files = os.listdir(".")
@@ -443,6 +525,19 @@ def create_rmsd_rg_bpti_top(traj, top, rmsd_rg_txt, start = 0, stop = 100000, st
     rmsd_rg = np.array([list(x) for x in zip(list(rmsd), list(rg))])
     print(rmsd_rg.shape)
     np.savetxt(rmsd_rg_txt, rmsd_rg)
+
+def create_rmsd1_rmsd2_bpti_top(traj,top,rmsd1_rmsd2_txt,atom_indices_1,atom_indices_2,start=0,stop=100000,stride=1):
+    trajec = md.load(traj, top = top)
+    trajec = trajec.remove_solvent()
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    rmsd1 = md.rmsd(trajec, trajec, 0, atom_indices_1)
+    print(rmsd1.shape)
+    rmsd2 = md.rmsd(trajec, trajec, 0, atom_indices_2)
+    print(rmsd2.shape)
+    rmsd1_rmsd2 = np.array([list(x) for x in zip(list(rmsd1), list(rmsd2))])
+    print(rmsd1_rmsd2.shape)
+    np.savetxt(rmsd1_rmsd2_txt, rmsd1_rmsd2)
 
 def fix_cap_replace_arg(pdb_file):
     fin = open(pdb_file, "rt")
@@ -1438,8 +1533,11 @@ class VampnetTools(object):
         ax[0][0].set_xlim((0, steps * tau))
         ax[0][0].axes.get_xaxis().set_ticks(
             np.round(np.linspace(0, steps * tau, 3)))
-        plt.show()
+        plt.savefig("ck_test.jpg", bbox_inches="tight")
+        plt.show(block=False)
+        plt.pause(1)
         plt.close()
+
 
     def _inv(self, x, ret_sqrt=False):
 
