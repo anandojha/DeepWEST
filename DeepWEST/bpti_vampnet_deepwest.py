@@ -1,12 +1,20 @@
-﻿import matplotlib.gridspec as gridspec
+from scipy.ndimage.filters import gaussian_filter
+from contact_map import ContactDifference
+from contact_map import ContactFrequency
+import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import tensorflow as tf
+from math import sin 
+from math import cos 
 import mdtraj as md
+import pandas as pd
 import numpy as np
 import itertools
-import time
+import fnmatch
 import sys
 import os
+import re
 pwd_deepwest = "/home/aaojha/DeepWEST/"  # PWD of the directory where DeepWEST is installed
 path_join = pwd_deepwest + "DeepWEST/"
 module_path = os.path.abspath(os.path.join(path_join))
@@ -15,37 +23,39 @@ if module_path not in sys.path:
 import DeepWEST 
 # Load Data ( .prmtop and .nc should be present)
 data_dir = os.getcwd()
-traj_file = os.path.join(data_dir, "system_final.nc")
-top = os.path.join(data_dir, "system_final.prmtop")             
-heavy_atoms_file = os.path.join("heavy_atoms_md_bpti.txt")
-index_1 = [201, 203, 205, 208 ]
-index_2 = [585, 587, 589, 592]
-chi14_chi38_file = os.path.join("chi14_chi38_md_bpti.txt")
-rmsd_rg_file = os.path.join("rmsd_rg_md_bpti.txt")
-# Define Hyperparameters and parameters
-attempts = 5 #10
+traj_file = os.path.join(data_dir, "system_sim_10.nc")
+top = os.path.join(data_dir, "system.prmtop")
+heavy_atoms_file = os.path.join("heavy_atoms_md_ntl9.txt")
+rmsd_rg_file = os.path.join("rmsd_rg_md_ntl9.txt")
+dihed1_dihed2_file = os.path.join("dihed1_dihed2_md_ntl9.txt")
+distance_rg_file = os.path.join("distance_rg_md_ntl9.txt")
+# Define Parameters and Hyperparameters
+attempts = 1 #10
 start = 0 #0
-stop = 500000 #500000
+stop = 500000
 stride = 1 #1
-no_frames = 10 # Number of frames to be selected from each bin in the output state 
-output_size = 4 # How many output states the network has (max = 6)
-tau = 44 # Tau, how much is the timeshift of the two datasets
+no_frames = 5 # Number of frames to be selected from each bin in the output state
+output_size = 3 # How many output states the network has (max = 6)
+tau = 6 #Tau, how much is the timeshift of the two datase
 batch_size = 1000 # Batch size for Stochastic Gradient descent
 train_ratio = 0.9 # Which trajectory points percentage is used as training
-network_depth = 8 # How many hidden layers the network has
+network_depth = 5 # How many hidden layers the network has
 layer_width = 100 # Width of every layer
 learning_rate = 1e-4 # Learning rate used for the ADAM optimizer
-nb_epoch = 60 # Iteration over the training set in the fitting process
 nb_epoch = 100 # Iteration over the training set in the fitting process
-epsilon = 1e-5  # epsilon
+epsilon = 1e-5 # epsilon 
+step_size = 10
 # Define data points
-DeepWEST.create_heavy_atom_xyz_solvent(traj = traj_file, top = top, heavy_atoms_array = heavy_atoms_file, start = start, stop = stop, stride = stride)
-DeepWEST.create_chi14_chi18_solvent_bpti(traj = traj_file, top = top, index_1 = index_1, index_2 = index_2, chi14_chi38_txt = chi14_chi38_file, start = start, stop = stop, stride = stride)
-DeepWEST.create_rmsd_rg_bpti_top(traj = traj_file, top = top, rmsd_rg_txt = rmsd_rg_file, start = start, stop = stop, stride = stride)
+DeepWEST.create_heavy_atom_xyz_no_solvent(traj = traj_file, top = top, heavy_atoms_array = heavy_atoms_file, start = start, stop = stop, stride = stride)
+DeepWEST.create_rmsd_rg_ntl9_top(traj = traj_file, top = top, rmsd_rg_txt = rmsd_rg_file, start = start, stop = stop, stride = stride)
+#scheme = 'ca', 'closest', 'closest-heavy'
+DeepWEST.create_input_features_ntl9(traj=traj_file, top=top, scheme = 'closest-heavy', feat_txt=dihed1_dihed2_file, start = start, stop = stop, stride = stride)
+
+
 traj_whole = np.loadtxt(heavy_atoms_file)
 print(traj_whole.shape)
-dihedral = np.loadtxt(chi14_chi38_file)
-print(dihedral.shape)
+dihed1_dihed2 = np.loadtxt(dihed1_dihed2_file)
+print(dihed1_dihed2.shape)
 rmsd_rg = np.loadtxt(rmsd_rg_file)
 print(rmsd_rg.shape)
 traj_data_points, input_size = traj_whole.shape
@@ -54,16 +64,15 @@ vamp = DeepWEST.VampnetTools(epsilon = epsilon)
 # Shuffle trajectory and lagged trajectory together
 length_data = traj_data_points - tau
 traj_ord = traj_whole[:length_data]
-traj_ord_lag = traj_whole[tau:length_data+tau]
-dihedral_init = dihedral[:length_data]
+traj_ord_lag = traj_whole[tau : length_data + tau]
+dihed1_dihed2_init = dihed1_dihed2[:length_data]
 rmsd_rg_init = rmsd_rg[:length_data]
 indexes = np.arange(length_data)
 np.random.shuffle(indexes)
 shuff_indexes = indexes.copy()
 traj = traj_ord[indexes]
 traj_lag = traj_ord_lag[indexes]
-dihedral_shuffle = dihedral_init[indexes]
-rmsd_rg_shuffle = rmsd_rg_init[indexes]
+dihed1_dihed2_shuffle = dihed1_dihed2_init[indexes]
 # Prepare data for tensorflow usage
 length_train = int(np.floor(length_data * train_ratio))
 length_vali = length_data - length_train
@@ -175,7 +184,7 @@ plt.plot(tm1, label = 'training VAMP')
 plt.plot(tm2, label = 'training VAMP2')
 plt.plot(-tm3, label = 'training loss')
 plt.legend()
-plt.savefig("rates_bpti.jpg", bbox_inches="tight", dpi = 500)
+plt.savefig("rates_ntl9.jpg", bbox_inches="tight", dpi = 500)
 plt.show(block=False)
 plt.pause(1)
 plt.close()
@@ -199,7 +208,7 @@ def print_states_pie_chart():
     ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
     print('States population: '+ str(np.array(coors)/len(maxi)*100)+'%')
     np.savetxt('population.txt', coors, delimiter=',')
-    plt.savefig("population_bpti.jpg", bbox_inches="tight", dpi = 500)
+    plt.savefig("population_ntl9.jpg", bbox_inches="tight", dpi = 500)
     plt.show(block=False)
     plt.pause(1)
     plt.close()
@@ -209,8 +218,8 @@ maxi_train = np.max(pred_ord, axis= 1)
 coor_train = np.zeros_like(pred_ord)
 for i in range(output_size):
     coor_train = np.where(pred_ord[:,i]== maxi_train)[0]
-    plt.scatter(dihedral_init[coor_train,0], dihedral_init[coor_train,1], s=5)
-    plt.savefig("dist_bpti.jpg", dpi = 500)
+    plt.scatter(dihed1_dihed2_init[coor_train,0], dihed1_dihed2_init[coor_train,1], s=5)
+    plt.savefig("dist_ntl9.jpg", dpi = 500)
     plt.axes = [[-np.pi, np.pi],[-np.pi, np.pi]]
 # For each state, visualize the probabilities the different trajectory points have to belong to it
 fig = plt.figure(figsize=(25,25))
@@ -218,7 +227,8 @@ gs1 = gridspec.GridSpec(2, int(np.ceil(output_size/2)))
 gs1.update(wspace=0.05, hspace = 0.05)
 for n in range(output_size):
     ax = plt.subplot(gs1[n])
-    im = ax.scatter(dihedral_init[:,0], dihedral_init[:,1], s=30, c = pred_ord[:,n], alpha=0.5, vmin = 0, vmax = 1)
+    im = ax.scatter(dihed1_dihed2_init[:,0], dihed1_dihed2_init[:,1], s=30, 
+                    c = pred_ord[:,n], alpha=0.5, vmin = 0, vmax = 1)
     plt.axis('on')
     title = 'State '+str(n + 1)
     ax.text(.85, .15, title,
@@ -249,37 +259,187 @@ gs1.tight_layout(fig, rect=[0, 0.03, 0.95, 0.94])
 cax = fig.add_axes([0.95, 0.05, 0.02, 0.8])
 cbar = fig.colorbar(im, cax=cax, ticks=[0, 1])
 cbar.ax.yaxis.set_tick_params(labelsize=40)
-fig.savefig("state_viz_bpti.jpg", bbox_inches="tight", dpi = 250)
+fig.savefig("state_viz_ntl9.jpg", bbox_inches="tight", dpi = 500)
 plt.close()
 # Markov Model Estimation
-# Estimate the implied timescales
 """
+# Estimate the implied timescales
 max_tau = 200
 lag = np.arange(1, max_tau, 1)
 its = vamp.get_its(pred_ord, lag)
-vamp.plot_its(its, lag, fig = "its_bpti.jpg")
+vamp.plot_its(its, lag, fig = "its_ntl9.jpg")
 """
 # Chapman-Kolmogorov test for the estimated koopman operator
 steps = 8
 tau_msm = 35
 predicted, estimated = vamp.get_ck_test(pred_ord, steps, tau_msm)
-#vamp.plot_ck_test(predicted, estimated, output_size, steps, tau_msm)
+# vamp.plot_ck_test(predicted, estimated, output_size, steps, tau_msm)
 # Saving the frame indices to a txt file
 indices_list = [idxs[0].tolist() for idxs in indexes]
 print("Saving indices")
-sorted_indices = DeepWEST.get_pdbs_from_clusters(indices = indices_list, rmsd_rg=rmsd_rg_shuffle, num_pdbs = no_frames)
+sorted_indices = DeepWEST.get_pdbs_from_clusters(indices = indices_list, 
+                                                 rmsd_rg=dihed1_dihed2_shuffle, num_pdbs = no_frames)
 print("Saved indices")
 index_for_we = list(itertools.chain.from_iterable(sorted_indices))
 print(len(index_for_we))
-np.savetxt("indices_vamp_bpti.txt", index_for_we)
+np.savetxt("indices_vamp_ntl9.txt", index_for_we)
 current_cwd = os.getcwd()
-westpa_cwd = current_cwd + "/" + "westpa_dir" # westpa directory pwd 
-indices_vamp = np.loadtxt("indices_vamp_bpti.txt")
+westpa_cwd = current_cwd + "/" + "westpa_dir"  # westpa directory pwd
+indices_vamp = np.loadtxt("indices_vamp_ntl9.txt")
 indices_vamp = [int(i) for i in indices_vamp]
-DeepWEST.create_westpa_dir(traj_file = traj_file, top = top, indices = indices_vamp, shuffled_indices=shuff_indexes)
+
+if output_size==2:
+    states_indices = []
+    maxi_train = np.max(pred_ord, axis= 1)
+    coor_train = np.zeros_like(pred_ord)
+    for i in range(output_size):
+        coor_train = np.where(pred_ord[:,i]== maxi_train)[0]
+        states_indices.append(coor_train)
+    trajec = md.load(traj_file, top=top)
+    print(trajec)
+    trajec_0 = trajec[list(states_indices[0][0::step_size])]
+    print(trajec_0)
+    trajec_0.save_netcdf("trajec_0.nc", force_overwrite=True)
+    trajec_1 = trajec[list(states_indices[1][0::step_size])]
+    print(trajec_1)
+    trajec_1.save_netcdf("trajec_1.nc", force_overwrite=True)
+if output_size==3:
+    states_indices = []
+    maxi_train = np.max(pred_ord, axis= 1)
+    coor_train = np.zeros_like(pred_ord)
+    for i in range(output_size):
+        coor_train = np.where(pred_ord[:,i]== maxi_train)[0]
+        states_indices.append(coor_train)
+    trajec = md.load(traj_file, top=top)
+    print(trajec)
+    trajec_0 = trajec[list(states_indices[0][0::step_size])]
+    print(trajec_0)
+    trajec_0.save_netcdf("trajec_0.nc", force_overwrite=True)
+    trajec_1 = trajec[list(states_indices[1][0::step_size])]
+    print(trajec_1)
+    trajec_1.save_netcdf("trajec_1.nc", force_overwrite=True)
+    trajec_2 = trajec[list(states_indices[2][0::step_size])]
+    print(trajec_2)
+    trajec_2.save_netcdf("trajec_2.nc", force_overwrite=True)
+
+if output_size==2:
+    traj0 = md.load("trajec_0.nc", top="system.prmtop")
+    topology0 = traj0.topology
+    trajectory_contacts0 = ContactFrequency(traj0, n_neighbors_ignored=0)
+    trajectory_contacts0.save_to_file("traj_contacts_0.p")
+    traj1 = md.load("trajec_1.nc", top="system.prmtop")
+    topology1 = traj1.topology
+    trajectory_contacts1 = ContactFrequency(traj1, n_neighbors_ignored=0)
+    trajectory_contacts1.save_to_file("traj_contacts_1.p")
+    fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(30, 8))
+    fig.tight_layout(pad=8.0)
+    axs = axs.flatten()
+    trajectory_contacts = [trajectory_contacts0, trajectory_contacts1]
+    for ax, trajectory_contact in zip(axs, trajectory_contacts):
+        trajectory_contact.residue_contacts.plot_axes(ax=ax, cmap='twilight_shifted', vmin=-1, 
+                                                      vmax=1, with_colorbar=True)
+        ax.set_xlabel('Residues', fontsize=24)
+        ax.set_ylabel('Residues', fontsize=24)
+        ax.tick_params(axis='both', which='major', labelsize=24)
+    fig.savefig('traj_dist.png', dpi=500)
+if output_size==3:
+    traj0 = md.load("trajec_0.nc", top="system.prmtop")
+    topology0 = traj0.topology
+    trajectory_contacts0 = ContactFrequency(traj0, n_neighbors_ignored=0)
+    trajectory_contacts0.save_to_file("traj_contacts_0.p")
+    traj1 = md.load("trajec_1.nc", top="system.prmtop")
+    topology1 = traj1.topology
+    trajectory_contacts1 = ContactFrequency(traj1, n_neighbors_ignored=0)
+    trajectory_contacts1.save_to_file("traj_contacts_1.p")
+    traj2 = md.load("trajec_2.nc", top="system.prmtop")
+    topology2 = traj2.topology
+    trajectory_contacts2 = ContactFrequency(traj2, n_neighbors_ignored=0)
+    trajectory_contacts2.save_to_file("traj_contacts_2.p")
+    fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(30, 8))
+    fig.tight_layout(pad=8.0)
+    axs = axs.flatten()
+    trajectory_contacts = [trajectory_contacts2, trajectory_contacts0, trajectory_contacts1]
+    for ax, trajectory_contact in zip(axs, trajectory_contacts):
+        trajectory_contact.residue_contacts.plot_axes(ax=ax, cmap='twilight_shifted', vmin=-1, 
+                                                      vmax=1, with_colorbar=True)
+        ax.set_xlabel('Residues', fontsize=24)
+        ax.set_ylabel('Residues', fontsize=24)
+        ax.tick_params(axis='both', which='major', labelsize=24)
+    fig.savefig('traj_dist.png', dpi=500)
+
+if output_size==3:
+    traj0 = md.load("trajec_0.nc", top="system.prmtop")
+    topology0 = traj0.topology
+    trajectory_contacts0 = ContactFrequency(traj0, n_neighbors_ignored=0)
+    trajectory_contacts0.save_to_file("traj_contacts_0.p")
+    traj1 = md.load("trajec_1.nc", top="system.prmtop")
+    topology1 = traj1.topology
+    trajectory_contacts1 = ContactFrequency(traj1, n_neighbors_ignored=0)
+    trajectory_contacts1.save_to_file("traj_contacts_1.p")
+    traj2 = md.load("trajec_2.nc", top="system.prmtop")
+    topology2 = traj2.topology
+    trajectory_contacts2 = ContactFrequency(traj2, n_neighbors_ignored=0)
+    trajectory_contacts2.save_to_file("traj_contacts_2.p")
+    fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(30, 8))
+    fig.tight_layout(pad=8.0)
+    axs = axs.flatten()
+    trajectory_contacts = [trajectory_contacts0, trajectory_contacts2, trajectory_contacts1]
+    for ax, trajectory_contact in zip(axs, trajectory_contacts):
+        trajectory_contact.residue_contacts.plot_axes(ax=ax, cmap='twilight_shifted', vmin=-1, 
+                                                      vmax=1, with_colorbar=True)
+        ax.set_xlabel('Residues', fontsize=24)
+        ax.set_ylabel('Residues', fontsize=24)
+        ax.tick_params(axis='both', which='major', labelsize=24)
+    fig.savefig('traj_dist.png', dpi=500)
+
+DeepWEST.create_westpa_dir(traj_file=traj_file, top=top, indices=indices_vamp, shuffled_indices=shuff_indexes)
 os.chdir(westpa_cwd)
-DeepWEST.run_min_bpti_westpa_dir(traj = traj_file, top = top, cuda = "available")
+DeepWEST.run_min_ntl9_westpa_dir(traj=traj_file, top=top, maxcyc = 200, cuda="unavailable")
 print("Creating WESTPA Filetree...")
 #DeepWEST.create_westpa_filetree()
-DeepWEST.create_biased_westpa_filetree(state_indices = sorted_indices, num_states = output_size)
+DeepWEST.create_biased_westpa2_filetree(state_indices = sorted_indices, num_states = output_size)# Postprocessing BASIS_STATES_RST and bstates (for WESTPA2)
+df = pd.read_csv("BASIS_STATES_RST", delimiter=r"\s+", header=None)
+df.columns = ["file", "prob", "index"]
+file_list = df["file"].values.tolist()
+command_list = []
+for i in file_list:
+    command_list.append("mv " + i + " " + str(file_list.index(i)) + ".rst")
+index_list = df["index"].values.tolist()
+file_index_list = []
+for i in index_list:
+    file_index_list.append(str(i) + ".rst")
+df_ = pd.DataFrame(file_index_list) 
+df_.columns = ["file_"]
+df__ = pd.concat([df,df_], axis=1)
+df__ = df__.drop('file', axis=1)
+df__ = df__[["file_", "prob", "index"]]
+df__.to_csv("BASIS_STATES_RST", sep="\t", index=False, header=False)
+os.system("cp -r BASIS_STATES_RST BASIS_STATES")
+os.chdir(westpa_cwd + "/" + "bstates_rst")
+files = os.listdir(".")
+file_to_find = "*.rst"
+rst_list = []
+for x in files:
+    if fnmatch.fnmatch(x, file_to_find):
+        rst_list.append(x)
+new_rst_list = []
+for i in range(len(command_list)):
+    new_rst_list.append(str(i) + ".rst")
+common_list = DeepWEST.common(rst_list, new_rst_list)
+index_ = []
+for i in common_list:
+    index_.append(int(re.findall(r'\d+', i)[0]))
+new_command_list = []
+for i in index_:
+    new_command_list.append(command_list[i])
+new_command_list_set = set(new_command_list)
+command_list_set = set(command_list)
+difference_set = (new_command_list_set - command_list_set).union(command_list_set - new_command_list_set)
+command_list_ = list(difference_set)
+for j in command_list_:
+    os.system(j)
+for i in new_command_list:
+    os.system(i)
+os.chdir(westpa_cwd)
+os.system("cp -r bstates_rst bstates")
 os.chdir(current_cwd)
