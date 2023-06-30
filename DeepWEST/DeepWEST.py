@@ -10,12 +10,15 @@ from keras.layers import Dense
 from keras.layers import Input
 from keras import optimizers
 import tensorflow as tf
+from math import sin 
+from math import cos
 import mdtraj as md
 import pandas as pd
 import pytraj as pt
 import numpy as np
 import itertools
 import fnmatch
+import pyemma
 import shutil
 import scipy
 import time
@@ -23,6 +26,10 @@ import sys
 import re
 import os
 ################ Common Functions ################
+
+def common(a, b):
+    common = [i for i in a if i in b]
+    return common
 
 def create_bins(lower_bound, width, upper_bound):
     bins = []
@@ -211,6 +218,21 @@ def folding_model_energy(rvec, rcut):
     if r < 0.0:
         return -2.5 * rr
     return 0.5 * (r - 2.0) * rr
+
+def fix_cap_replace_met(pdb_file):
+
+    """
+    Replaces the hydrogen atom of the
+    MET residue with a standard name.
+
+    """
+    fin = open(pdb_file, "rt")
+    data = fin.read()
+    data = data.replace("H   MET", "H1  MET")
+    fin.close()
+    fin = open(pdb_file, "wt")
+    fin.write(data)
+    fin.close()
 
 ################ Common Functions ################
 
@@ -518,6 +540,102 @@ def create_internal_coordinates_chignolin(traj, top, contacts, internal_coords_f
     np.savetxt(pot_file, pot)
     np.savetxt(r_file, r)
 
+def get_all_phi_psi_chignolin(psi_angles, phi_angles, traj, start, stop, stride, ref_pdb, phi_psi_txt):
+    command = "curl -O https://files.rcsb.org/download/1UAO.pdb1.gz"
+    os.system(command)
+    command = "gunzip 1UAO.pdb1.gz"
+    os.system(command)
+    command = "mv 1UAO.pdb1 " + ref_pdb
+    os.system(command)
+    trajec = md.load(traj, top=ref_pdb)
+    trajec = trajec.remove_solvent()
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    psi = md.compute_dihedrals(trajec, indices=psi_angles)
+    print(psi.shape)
+    init_shape = psi.shape
+    psi = psi.flatten()
+    print(psi.shape)
+    psi = list(psi)
+    psi_sin = []
+    for i in psi:
+        psi_sin.append(sin(i))
+    psi_sin = np.array(psi_sin)
+    psi_sin = psi_sin.reshape((init_shape[0], init_shape[1]))
+    print(psi_sin.shape)
+    psi_sin = np.transpose(psi_sin)
+    print(psi_sin.shape)
+    psi_sin = psi_sin.tolist()
+    print(len(psi_sin))
+    psi_sin_ = []
+    for i in range(len(psi_sin)):
+        psi_sin_.append("psi_sin" + "[" + str(i) + "]")
+    psi_sin_str = ','.join(e for e in psi_sin_)
+    psi_cos = []
+    for i in psi:
+        psi_cos.append(cos(i))
+    psi_cos = np.array(psi_cos)
+    psi_cos = psi_cos.reshape((init_shape[0], init_shape[1]))
+    print(psi_cos.shape)
+    psi_cos = np.transpose(psi_cos)
+    print(psi_cos.shape)
+    psi_cos = psi_cos.tolist()
+    print(len(psi_cos))
+    psi_cos_ = []
+    for i in range(len(psi_cos)):
+        psi_cos_.append("psi_cos" + "[" + str(i) + "]")
+    psi_cos_str = ','.join(e for e in psi_cos_)
+    phi = md.compute_dihedrals(trajec, indices=phi_angles)
+    print(phi.shape)
+    init_shape = phi.shape
+    phi = phi.flatten()
+    print(phi.shape)
+    phi = list(phi)
+    phi_sin = []
+    for i in phi:
+        phi_sin.append(sin(i))
+    phi_sin = np.array(phi_sin)
+    phi_sin = phi_sin.reshape((init_shape[0], init_shape[1]))
+    print(phi_sin.shape)
+    phi_sin = np.transpose(phi_sin)
+    print(phi_sin.shape)
+    phi_sin = phi_sin.tolist()
+    print(len(phi_sin))
+    phi_sin_ = []
+    for i in range(len(phi_sin)):
+        phi_sin_.append("phi_sin" + "[" + str(i) + "]")
+    phi_sin_str = ','.join(e for e in phi_sin_)
+    phi_cos = []
+    for i in phi:
+        phi_cos.append(cos(i))
+    phi_cos = np.array(phi_cos)
+    phi_cos = phi_cos.reshape((init_shape[0], init_shape[1]))
+    print(phi_cos.shape)
+    phi_cos = np.transpose(phi_cos)
+    print(phi_cos.shape)
+    phi_cos = phi_cos.tolist()
+    print(len(phi_cos))
+    phi_cos_ = []
+    for i in range(len(phi_cos)):
+        phi_cos_.append("phi_cos" + "[" + str(i) + "]")
+    phi_cos_str = ','.join(e for e in phi_cos_)    
+    command = "psi_phi_all = np.array([list(x) for x in zip(" + psi_sin_str + "," + psi_cos_str + "," + phi_sin_str + "," + phi_cos_str + ")])"
+    print(command)
+    #exec(command)
+    psi_phi_all = np.array([list(x) for x in zip(psi_sin[0],psi_sin[1],psi_sin[2],psi_sin[3],psi_sin[4],psi_sin[5],psi_sin[6],psi_sin[7],psi_sin[8],psi_cos[0],psi_cos[1],psi_cos[2],psi_cos[3],psi_cos[4],psi_cos[5],psi_cos[6],psi_cos[7],psi_cos[8],phi_sin[0],phi_sin[1],phi_sin[2],phi_sin[3],phi_sin[4],phi_sin[5],phi_sin[6],phi_sin[7],phi_sin[8],phi_cos[0],phi_cos[1],phi_cos[2],phi_cos[3],phi_cos[4],phi_cos[5],phi_cos[6],phi_cos[7],phi_cos[8])])
+    #print(psi_phi_all.shape)
+    np.savetxt(phi_psi_txt, psi_phi_all)  
+    
+def create_input_features_chignolin(traj, top, scheme, feat_txt, start = 0, stop = 250000, stride = 1):
+    #scheme = 'ca', 'closest', 'closest-heavy'
+    trajec = md.load(traj, top=top)
+    feat = pyemma.coordinates.featurizer(trajec.topology) 
+    feat.add_residue_mindist(residue_pairs='all', scheme=scheme, ignore_nonprotein=True, threshold=None, periodic=True)
+    files = [traj]
+    data = pyemma.coordinates.load(files, features=feat)
+    print(data.shape)
+    np.savetxt(feat_txt, data)
+
 def run_min_chignolin_westpa_dir(traj, top, maxcyc = 200, cuda = "available"):
     files = os.listdir(".")
     file_to_find = "*.pdb"
@@ -572,6 +690,82 @@ def run_min_chignolin_westpa_dir(traj, top, maxcyc = 200, cuda = "available"):
     os.system(command)
 
 ################ Chignolin Functions ################
+
+
+################ NTL9 Functions ################
+
+def create_rmsd_rg_ntl9_top(traj, top, rmsd_rg_txt, start = 0, stop = 250000, stride = 1):
+    trajec = md.load(traj, top = top)
+    trajec = trajec.remove_solvent()
+    trajec = trajec[start:stop:stride]
+    print(trajec)
+    rmsd = md.rmsd(trajec, trajec, 0)
+    print(rmsd.shape)
+    rg = md.compute_rg(trajec)
+    print(rg.shape)
+    rmsd_rg = np.array([list(x) for x in zip(list(rmsd), list(rg))])
+    print(rmsd_rg.shape)
+    np.savetxt(rmsd_rg_txt, rmsd_rg)
+
+def create_input_features_ntl9(traj, top, scheme, feat_txt, start = 0, stop = 250000, stride = 1):
+    #scheme = 'ca', 'closest', 'closest-heavy'
+    trajec = md.load(traj, top=top)
+    feat = pyemma.coordinates.featurizer(trajec.topology) 
+    feat.add_residue_mindist(residue_pairs='all', scheme=scheme, ignore_nonprotein=True, threshold=None, periodic=True)
+    files = [traj]
+    data = pyemma.coordinates.load(files, features=feat)
+    print(data.shape)
+    np.savetxt(feat_txt, data)
+
+
+def run_min_ntl9_westpa_dir(traj, top, maxcyc = 200, cuda = "available"):
+    files = os.listdir(".")
+    file_to_find = "*.pdb"
+    pdb_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            pdb_list.append(x)
+    for i in pdb_list:
+        pdb_file = i
+        fix_cap_replace_met(pdb_file)
+    # Saving inpcrd file from mdtraj saved pdb files
+        pdb_file = i
+        line_1 = "source leaprc.protein.ff19SB"
+        line_2 = "pdb = loadpdb " + pdb_file
+        line_3 = "saveamberparm pdb " + pdb_file[:-4] + ".prmtop " + pdb_file[:-4] + ".inpcrd"
+        line_4 = "quit"
+        with open("input.leap", "w") as f:
+            f.write("    " + "\n")
+            f.write(line_1 + "\n")
+            f.write(line_2 + "\n")
+            f.write(line_3 + "\n")
+            f.write(line_4 + "\n")
+        command = "tleap -f input.leap"
+        os.system(command)
+        command = "rm -rf input.leap"
+        os.system(command)
+    # Creating Amber MD input file
+    with open("md.in", "w") as f:
+        f.write("Run minimization followed by saving rst file" + "\n")
+        f.write("&cntrl" + "\n")
+        f.write("  imin = 1, maxcyc = " + str(maxcyc) + ", ntpr = 50, ntxo = 1, igb = 5, cut = 1000.00" + "\n")
+        f.write("&end" + "\n")
+    # Running short MD simulations to save .rst file
+    for i in pdb_list:
+        pdb_file = i
+        if cuda == "available":
+            command = "pmemd.cuda -O -i md.in -o " + pdb_file[:-4] + ".out" + " -p " + pdb_file[:-4] + ".prmtop" + " -c " + pdb_file[:-4] + ".inpcrd" + " -r " + pdb_file[:-4] + ".rst"
+            print(command)
+        if cuda == "unavailable":
+            command = "sander -O -i md.in -o " + pdb_file[:-4] + ".out" + " -p " + pdb_file[:-4] + ".prmtop" + " -c " + pdb_file[:-4] + ".inpcrd" + " -r " + pdb_file[:-4] + ".rst"
+            print(command)
+        os.system(command)
+    # Deleting md.in file
+    command = "rm -rf md.in __pycache__  leap.log mdinfo"
+    os.system(command)
+
+################ NTL9 Functions ################
+
 
 ################ BPTI Functions ################
 
@@ -940,6 +1134,146 @@ def create_biased_westpa_filetree(state_indices, num_states):
     df = pd.DataFrame(data)
     df = df.transpose()
     df.columns = ["index", "prob", "file"]
+    df.to_csv("BASIS_STATES_INPCRD", sep="\t", index=False, header=False)
+    files = os.listdir(".")
+    file_to_find = "*.prmtop"
+    prmtop_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            prmtop_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "CONFIG"
+    os.system("rm -rf CONFIG")
+    os.system("mkdir CONFIG")
+    prmtop_file = prmtop_list[0]
+    shutil.copy(current_dir + "/" + prmtop_file, target_dir + "/" + "system_final.prmtop")
+    command = "rm -rf *.pdb* *.inpcrd* *.prmtop* *.rst* *.out* "
+    os.system(command)
+
+def create_biased_westpa2_filetree(state_indices, num_states):
+    files = os.listdir(".")
+    file_to_find = "*.rst"
+    rst_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            rst_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_rst"
+    os.system("rm -rf bstates_rst")
+    os.system("mkdir bstates_rst")
+    for i in rst_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+    files = os.listdir(".")
+    file_to_find = "*.pdb"
+    pdb_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            pdb_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_pdb"
+    os.system("rm -rf bstates_pdb")
+    os.system("mkdir bstates_pdb")
+    for i in pdb_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+    files = os.listdir(".")
+    file_to_find = "*.inpcrd"
+    inpcrd_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            inpcrd_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_inpcrd"
+    os.system("rm -rf bstates_inpcrd")
+    os.system("mkdir bstates_inpcrd")
+    for i in inpcrd_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+    files = os.listdir(".")
+    file_to_find = "*.prmtop"
+    prmtop_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            prmtop_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_prmtop"
+    os.system("rm -rf bstates_prmtop")
+    os.system("mkdir bstates_prmtop")
+    for i in prmtop_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+    files = os.listdir(".")
+    file_to_find = "*.out"
+    out_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            out_list.append(x)
+    current_dir = os.getcwd()
+    target_dir = current_dir + "/" + "bstates_out"
+    os.system("rm -rf bstates_out")
+    os.system("mkdir bstates_out")
+    for i in out_list:
+        shutil.copy(current_dir + "/" + i, target_dir + "/" + i)
+    os.chdir("..")
+    prob_file = "population.txt"
+    probab = np.loadtxt(prob_file)
+    total = np.sum(probab)
+    probab = probab/total
+    print(probab)
+    os.chdir("westpa_dir")
+    files = os.listdir(".")
+    prob_list = []
+    print("Total number of rst files: ", len(rst_list))
+    final_rst_state_indices = [[] for i in range(num_states)]
+    for rst in rst_list:
+        idx = rst.split('.')[0]
+        for i in range(num_states):
+            if int(idx) in state_indices[i]:
+                final_rst_state_indices[i].append(int(idx))
+                break
+    for rst in rst_list:
+        idx = rst.split('.')[0]
+        for i in range(num_states):
+            if int(idx) in state_indices[i]:
+                prob = round((probab[i]) / (len(final_rst_state_indices[i])), 10)
+                prob_list.append(prob)
+    print(prob_list)
+    print("Total Probability with rst files:", sum(prob_list))
+    index = []
+    for i in range(len(rst_list)):
+        index.append(i)
+    data = [rst_list, prob_list, index]
+    df = pd.DataFrame(data)
+    df = df.transpose()
+    df.columns = ["file", "prob", "index"]
+    df.to_csv("BASIS_STATES_RST", sep="\t", index=False, header=False)
+    files = os.listdir(".")
+    file_to_find = "*.inpcrd"
+    inpcrd_list = []
+    for x in files:
+        if fnmatch.fnmatch(x, file_to_find):
+            inpcrd_list.append(x)
+    prob_list = []
+    print("Total number of inpcrd files: ", len(inpcrd_list))
+    final_inpcrd_state_indices = [[] for i in range(num_states)]
+    for inpcrd in inpcrd_list:
+        idx = inpcrd.split('.')[0]
+        for i in range(num_states):
+            if int(idx) in state_indices[i]:
+                final_inpcrd_state_indices[i].append(int(idx))
+                break
+    for inpcrd in inpcrd_list:
+        idx = inpcrd.split('.')[0]
+        for i in range(num_states):
+            if int(idx) in state_indices[i]:
+                prob = round((probab[i]) / (len(final_inpcrd_state_indices[i])), 10)
+                prob_list.append(prob)
+    print(prob_list)
+    print("Total Probability with inpcrd files:", sum(prob_list))
+    index = []
+    for i in range(len(inpcrd_list)):
+        index.append(i)
+    data = [inpcrd_list, prob_list, index]
+    df = pd.DataFrame(data)
+    df = df.transpose()
+    df.columns = ["file", "prob", "index"]
     df.to_csv("BASIS_STATES_INPCRD", sep="\t", index=False, header=False)
     files = os.listdir(".")
     file_to_find = "*.prmtop"
