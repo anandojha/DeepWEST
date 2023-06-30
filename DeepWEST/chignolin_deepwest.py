@@ -20,7 +20,7 @@ import DeepWEST
 DeepWEST.get_chignolin_ref_pdb()
 # Load Data ( .prmtop and .nc should be present)
 data_dir = os.getcwd()
-traj_file = os.path.join(data_dir, "system_final.nc")
+traj_file = os.path.join(data_dir, "system_final_100ns.nc")
 top = os.path.join(data_dir, "system_final.prmtop")
 heavy_atoms_file = os.path.join("heavy_atoms_md_chignolin.txt")
 rmsd_rg_file = os.path.join("rmsd_rg_md_chignolin.txt")
@@ -29,11 +29,11 @@ distance_rg_file = os.path.join("distance_rg_md_chignolin.txt")
 # Define Parameters and Hyperparameters
 attempts = 1 #10
 start = 0 #0
-stop = 500000 #500000
+stop = 500000
 stride = 1 #1
-no_frames = 30 # Number of frames to be selected from each bin in the output state
+no_frames = 50 # Number of frames to be selected from each bin in the output state
 output_size =  3 # How many output states the network has (max = 6)
-tau = 30 # Tau, how much is the timeshift of the two datase
+tau = 200 #Tau, how much is the timeshift of the two datase
 batch_size = 1000 # Batch size for Stochastic Gradient descent
 train_ratio = 0.9 # Which trajectory points percentage is used as training
 network_depth = 6 # How many hidden layers the network has
@@ -44,7 +44,8 @@ epsilon = 1e-5 # epsilon
 # Define data points
 DeepWEST.create_heavy_atom_xyz_no_solvent(traj = traj_file, top = top, heavy_atoms_array = heavy_atoms_file, start = start, stop = stop, stride = stride)
 DeepWEST.create_rmsd_rg_chignolin_top(traj = traj_file, top = top, rmsd_rg_txt = rmsd_rg_file, start = start, stop = stop, stride = stride)
-DeepWEST.create_dihed1_dihed2_sin_chignolin(traj = traj_file, dihed1_dihed2_txt = dihed1_dihed2_file, start = start, stop = stop, stride = stride)
+#scheme = 'ca', 'closest', 'closest-heavy'
+DeepWEST.create_input_features_chignolin(traj=traj_file, top=top, scheme = 'closest-heavy', feat_txt=dihed1_dihed2_file, start = start, stop = stop, stride = stride)
 
 traj_whole = np.loadtxt(heavy_atoms_file)
 print(traj_whole.shape)
@@ -280,25 +281,6 @@ westpa_cwd = current_cwd + "/" + "westpa_dir"  # westpa directory pwd
 indices_vamp = np.loadtxt("indices_vamp_chignolin.txt")
 indices_vamp = [int(i) for i in indices_vamp]
 
-# Saving trajectories
-states_indices = []
-maxi_train = np.max(pred_ord, axis= 1)
-coor_train = np.zeros_like(pred_ord)
-for i in range(output_size):
-    coor_train = np.where(pred_ord[:,i]== maxi_train)[0]
-    states_indices.append(coor_train)
-trajec = md.load(traj_file, top=top)
-print(trajec)
-trajec_0 = trajec[list(states_indices[0])]
-print(trajec_0)
-trajec_0.save_pdb("trajec_0.pdb", force_overwrite=True)
-trajec_1 = trajec[list(states_indices[1])]
-print(trajec_1)
-trajec_1.save_pdb("trajec_1.pdb", force_overwrite=True)
-trajec_2 = trajec[list(states_indices[2])]
-print(trajec_2)
-trajec_2.save_pdb("trajec_2.pdb", force_overwrite=True)
-
 # Visualize how the states are placed on the Rg-RMSD plot  
 maxi_train = np.max(pred_ord, axis= 1)
 coor_train = np.zeros_like(pred_ord)
@@ -361,94 +343,6 @@ for i in range(1, output_size-1):
     plt.pause(3)
     plt.close()
 
-trajectory = "trajec_0.pdb"
-topology = "system_final.prmtop"
-traj = md.load(trajectory, top = topology)
-dist0 = md.compute_contacts(traj, contacts=[[0,9]], scheme='ca',ignore_nonprotein=True, periodic=True, soft_min=False, soft_min_beta=20)
-dist0_list = []
-for i in dist0[0]:
-    dist0_list.append(i.tolist())
-dists0 = [x for xs in dist0_list for x in xs]
-trajectory = "trajec_1.pdb"
-topology = "system_final.prmtop"
-traj = md.load(trajectory, top = topology)
-dist1 = md.compute_contacts(traj, contacts=[[0,9]], scheme='ca',ignore_nonprotein=True, periodic=True,soft_min=False, soft_min_beta=20)
-dist1_list = []
-for i in dist1[0]:
-    dist1_list.append(i.tolist())
-dists1 = [x for xs in dist1_list for x in xs]
-trajectory = "trajec_2.pdb"
-topology = "system_final.prmtop"
-traj = md.load(trajectory, top = topology)
-dist2 = md.compute_contacts(traj, contacts=[[0,9]], scheme='ca',ignore_nonprotein=True, periodic=True,soft_min=False, soft_min_beta=20)
-dist2_list = []
-for i in dist2[0]:
-    dist2_list.append(i.tolist())
-dists2 = [x for xs in dist2_list for x in xs]
-dists00=dists0[1:24001:4]
-dists11=dists1[1:12001:2]
-dists22=dists2[1:6001:1]
-x = list(range(1,6001))
-window = 500
-average_y00 = []
-for ind in range(len(dists00) - window + 1):
-    average_y00.append(np.mean(dists00[ind:ind+window]))
-for ind in range(window - 1):
-    average_y00.insert(0, np.nan)
-average_y11 = []
-for ind in range(len(dists11) - window + 1):
-    average_y11.append(np.mean(dists11[ind:ind+window]))
-for ind in range(window - 1):
-    average_y11.insert(0, np.nan)  
-average_y22 = []
-for ind in range(len(dists22) - window + 1):
-    average_y22.append(np.mean(dists22[ind:ind+window]))
-for ind in range(window - 1):
-    average_y22.insert(0, np.nan)       
-plt.figure(figsize=(10, 6), dpi=500)
-plt.plot(x, average_y00, 'g.-', label='DeepWEST Metastable State#1')
-plt.plot(x, average_y11, 'r.-', label='DeepWEST Metastable State#2')
-plt.plot(x, average_y22, 'b.-', label='DeepWEST Metastable State#3')
-plt.ylabel(r' Distance between C$\alpha$-C$\alpha$ terminal residues ($\AA$)')
-plt.xlabel("Trajectory Frames")
-plt.legend()
-plt.savefig('dd_plots.jpeg', dpi=1000)
-plt.show()trajec_saved_0 = md.load_pdb("trajec_0.pdb")
-rg0 = md.compute_rg(trajec_saved_0)
-trajec_saved_1 = md.load_pdb("trajec_1.pdb")
-rg1 = md.compute_rg(trajec_saved_1)
-trajec_saved_2 = md.load_pdb("trajec_2.pdb")
-rg2 = md.compute_rg(trajec_saved_1)
-rg00=rg0[1:24001:4]
-rg11=rg1[1:12001:2]
-rg22=rg2[1:6001:1]
-x = list(range(1,6001))
-window = 500
-average_y00 = []
-for ind in range(len(rg00) - window + 1):
-    average_y00.append(np.mean(rg00[ind:ind+window]))
-for ind in range(window - 1):
-    average_y00.insert(0, np.nan)
-average_y11 = []
-for ind in range(len(rg11) - window + 1):
-    average_y11.append(np.mean(rg11[ind:ind+window]))
-for ind in range(window - 1):
-    average_y11.insert(0, np.nan) 
-average_y22 = []
-for ind in range(len(rg22) - window + 1):
-    average_y22.append(np.mean(rg22[ind:ind+window]))
-for ind in range(window - 1):
-    average_y22.insert(0, np.nan)     
-plt.figure(figsize=(10, 6), dpi=1000)
-plt.plot(x, average_y00, 'g.-', label='DeepWEST Metastable State#1')
-plt.plot(x, average_y11, 'r.-', label='DeepWEST Metastable State#2')
-plt.plot(x, average_y22, 'b.-', label='DeepWEST Metastable State#3')
-plt.ylabel("Radius of Gyration ($\AA$)")
-plt.xlabel("Trajectory Frames")
-plt.legend()
-plt.savefig('rg_plots.jpeg', dpi=1000)
-plt.show()
-
 maxi_train = np.max(pred_ord, axis= 1)
 coor_train = np.zeros_like(pred_ord)
 for i in range(0, output_size-2):
@@ -508,9 +402,9 @@ x3_data.append(1.00)
 y3_data.append(1.00)
 x3_data.append(0.00)
 y3_data.append(0.45)
-n = 1000
+n = 4
 ticks = range(n)
-colors = plt.cm.get_cmap('jet',n)(ticks)
+colors = plt.cm.get_cmap('gist_heat_r',n)(ticks)
 lcmap = plt.matplotlib.colors.ListedColormap(colors)
 fig, (ax3, ax1, ax2) = plt.subplots(1, 3, figsize=(14, 6), dpi=2000, gridspec_kw={'width_ratios': [1.1, 1.1, 1]})
 plt.subplots_adjust(wspace=0.4, hspace=0.4)
@@ -547,7 +441,9 @@ n = 1000
 ticks = range(n)
 colors = plt.cm.get_cmap('jet',n)(ticks)
 lcmap = plt.matplotlib.colors.ListedColormap(colors)
-plt.figure(figsize=(8, 6), dpi=2000)
+#'jet', Accent', 'Accent_r', 'Blues', 'Blues_r', 'BrBG', 'BrBG_r', 'BuGn', 'BuGn_r', 'BuPu', 'BuPu_r', 'CMRmap', 'CMRmap_r', 'Dark2', 'Dark2_r', 'GnBu', 'GnBu_r', 'Greens', 'Greens_r', 'Greys', 'Greys_r', 'OrRd', 'OrRd_r', 'Oranges', 'Oranges_r', 'PRGn', 'PRGn_r', 'Paired', 'Paired_r', 'Pastel1', 'Pastel1_r', 'Pastel2', 'Pastel2_r', 'PiYG', 'PiYG_r', 'PuBu', 'PuBuGn', 'PuBuGn_r', 'PuBu_r', 'PuOr', 'PuOr_r', 'PuRd', 'PuRd_r', 'Purples', 'Purples_r', 'RdBu', 'RdBu_r', 'RdGy', 'RdGy_r', 'RdPu', 'RdPu_r', 'RdYlBu', 'RdYlBu_r', 'RdYlGn', 'RdYlGn_r', 'Reds', 'Reds_r', 'Set1', 'Set1_r', 'Set2', 'Set2_r', 'Set3', 'Set3_r', 'Spectral', 'Spectral_r', 'Wistia', 'Wistia_r', 'YlGn', 'YlGnBu', 'YlGnBu_r', 'YlGn_r', 'YlOrBr', 'YlOrBr_r', 'YlOrRd', 'YlOrRd_r', 'afmhot', 'afmhot_r', 'autumn', 'autumn_r', 'binary', 'binary_r', 'bone', 'bone_r', 'brg','brg_r', 'bwr', 'bwr_r', 'cividis', 'cividis_r', 'cool', 'cool_r', 'coolwarm', 'coolwarm_r', 'copper', 'copper_r', 'cubehelix', 'cubehelix_r', 'flag', 'flag_r', 'gist_earth', 'gist_earth_r', 'gist_gray', 'gist_gray_r', 'gist_heat', 'gist_heat_r', 'gist_ncar', 'gist_ncar_r', 'gist_rainbow', 'gist_rainbow_r', 'gist_stern', 'gist_stern_r', 'gist_yarg', 'gist_yarg_r', 'gnuplot', 'gnuplot2', 'gnuplot2_r', 'gnuplot_r', 'gray', 'gray_r', 'hot', 'hot_r', 'hsv', 'hsv_r', 'inferno', 'inferno_r', 'jet', 'jet_r', 'magma','magma_r', 'nipy_spectral', 'nipy_spectral_r', 'ocean', 'ocean_r', 'pink', 'pink_r', 'plasma', 'plasma_r','prism', 'prism_r', 'rainbow', 'rainbow_r', 'seismic', 'seismic_r', 'spring', 'spring_r', 'summer', 'summer_r', 'tab10', 'tab10_r', 'tab20', 'tab20_r', 'tab20b', 'tab20b_r', 'tab20c', 'tab20c_r', 'terrain', 'terrain_r', 'turbo', 'turbo_r', 'twilight', 'twilight_r', 'twilight_shifted', 'twilight_shifted_r', 'viridis', 'viridis_r', 'winter', 'winter_r'
+
+plt.figure(figsize=(8, 8), dpi=2000)
 heatmap, xedges, yedges = np.histogram2d(x1_data, y1_data, bins=1000)
 heatmap = gaussian_filter(heatmap, sigma=64)
 extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
@@ -556,12 +452,14 @@ plt.xlabel(r'RMSD (nm)', fontsize=12)
 plt.ylabel(r'$R_g$ (nm)', fontsize=12)
 cbar = plt.colorbar(fraction=0.0265)    
 ticklabels = ['low', 'medium', 'high']
-cbar.set_ticks(np.linspace(0, 4.00, len(ticklabels)))
+cbar.set_ticks(np.linspace(0.5, 3.50, len(ticklabels)))
 cbar.set_ticklabels(ticklabels)
 cbar.set_label('Frequency', rotation=270,loc='center', labelpad=15)
 plt.savefig('chignolin_dist_1.jpeg', dpi=1000, bbox_inches = "tight")
 plt.show()
-plt.figure(figsize=(8, 6), dpi=2000)
+
+
+plt.figure(figsize=(8, 8), dpi=2000)
 heatmap, xedges, yedges = np.histogram2d(x2_data, y2_data, bins=1000)
 heatmap = gaussian_filter(heatmap, sigma=64)
 extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
@@ -570,12 +468,13 @@ plt.xlabel(r'RMSD (nm)', fontsize=12)
 plt.ylabel(r'$R_g$ (nm)', fontsize=12)
 cbar = plt.colorbar(fraction=0.0265)    
 ticklabels = ['low', 'medium', 'high']
-cbar.set_ticks(np.linspace(0, 1.78, len(ticklabels)))
+cbar.set_ticks(np.linspace(0.35, 2.40, len(ticklabels)))
 cbar.set_ticklabels(ticklabels)
 cbar.set_label('Frequency', rotation=270,loc='center', labelpad=15)
 plt.savefig('chignolin_dist_2.jpeg', dpi=1000, bbox_inches = "tight")
 plt.show()
-plt.figure(figsize=(8, 6), dpi=2000)
+
+plt.figure(figsize=(8, 8), dpi=2000)
 heatmap, xedges, yedges = np.histogram2d(x3_data, y3_data, bins=1000)
 heatmap = gaussian_filter(heatmap, sigma=64)
 extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
@@ -584,11 +483,30 @@ plt.xlabel(r'RMSD (nm)', fontsize=12)
 plt.ylabel(r'$R_g$ (nm)', fontsize=12)
 cbar = plt.colorbar(fraction=0.0265)    
 ticklabels = ['low', 'medium', 'high']
-cbar.set_ticks(np.linspace(0, 1.70, len(ticklabels)))
+cbar.set_ticks(np.linspace(0.02, 0.20, len(ticklabels)))
 cbar.set_ticklabels(ticklabels)
 cbar.set_label('Frequency', rotation=270,loc='center', labelpad=15)
 plt.savefig('chignolin_dist_3.jpeg', dpi=1000, bbox_inches = "tight")
 plt.show()
+
+# Saving trajectories
+states_indices = []
+maxi_train = np.max(pred_ord, axis= 1)
+coor_train = np.zeros_like(pred_ord)
+for i in range(output_size):
+    coor_train = np.where(pred_ord[:,i]== maxi_train)[0]
+    states_indices.append(coor_train)
+trajec = md.load(traj_file, top=top)
+print(trajec)
+trajec_0 = trajec[list(states_indices[0])]
+print(trajec_0)
+trajec_0.save_pdb("trajec_0.pdb", force_overwrite=True)
+trajec_1 = trajec[list(states_indices[1])]
+print(trajec_1)
+trajec_1.save_pdb("trajec_1.pdb", force_overwrite=True)
+trajec_2 = trajec[list(states_indices[2])]
+print(trajec_2)
+trajec_2.save_pdb("trajec_2.pdb", force_overwrite=True)
 
 DeepWEST.create_westpa_dir(traj_file=traj_file, top=top, indices=indices_vamp, shuffled_indices=shuff_indexes)
 os.chdir(westpa_cwd)
